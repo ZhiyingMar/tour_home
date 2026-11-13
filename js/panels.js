@@ -1,7 +1,7 @@
 // 三个面板：和小星聊天、设置页、小星的记忆本。
 import { ui } from './ui.js';
 import { memory } from './memory.js';
-import { settings, saveSettings, playerName, hasKey, session, ask, chatHistory, clearChat, DEFAULT_MODEL } from './ai.js';
+import { settings, saveSettings, playerName, hasKey, session, ask, chatHistory, clearChat, DEFAULT_MODEL, DEFAULT_BASE_URL } from './ai.js';
 import { bus } from './store.js';
 import { hourNow, periodName } from './time.js';
 
@@ -71,7 +71,7 @@ function openSettings() {
   $('set-key').value = settings.apiKey || '';
   $('set-key').type = 'password';
   $('set-model').value = settings.model || DEFAULT_MODEL;
-  $('set-workspace').value = settings.workspaceId || '';
+  $('set-base').value = settings.baseUrl || DEFAULT_BASE_URL;
   $('session-calls').textContent = session.calls;
   ui.open('settings');
 }
@@ -81,7 +81,7 @@ function saveSettingsForm() {
     name: $('set-name').value.trim().slice(0, 12),
     apiKey: $('set-key').value.trim(),
     model: $('set-model').value.trim(),
-    workspaceId: $('set-workspace').value.trim(),
+    baseUrl: $('set-base').value.trim(),
   });
   ui.closeAll();
   ui.toast(hasKey() ? '保存好啦，小星可以陪你聊天了' : '保存好啦');

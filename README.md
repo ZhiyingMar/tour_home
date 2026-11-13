@@ -38,17 +38,16 @@ python3 -m http.server 8765
 
 不填 API key 也能玩，小星会说几句预设台词。想让它真的聊天：
 
-1. 在 [Claude Console](https://platform.claude.com/settings/keys) 创建一个 API key（建议绑定到单个 workspace，并设一个过期时间）。
+1. 在任意 OpenAI 兼容的服务商（默认是 [DeepSeek](https://platform.deepseek.com/api_keys)）创建一个 API key。
 2. 游戏里点 ⚙️，把 key 粘贴进去，保存。
 
-设置页里还能改：小星对你的称呼（默认"小颖"）、模型名（默认 `claude-opus-5-5`，想省钱可以改成 `claude-haiku-5-5`）、Workspace ID（只有 key 没绑定 workspace 时才需要），并显示本次会话调用了多少次 API。
+设置页里还能改：小星对你的称呼（默认"小颖"）、Base URL（默认 `https://api.deepseek.com`）、模型名（默认 `deepseek-chat`），并显示本次会话调用了多少次 API。换成别家只要改这两项，例如 OpenAI：`https://api.openai.com/v1` + `gpt-4o-mini`；OpenRouter：`https://openrouter.ai/api/v1`。
 
 ### 浏览器直接调用 API 需要什么
 
-依据 Anthropic 官方文档 [Authentication → Browser-based applications](https://platform.claude.com/docs/en/manage-claude/authentication#browser-based-applications)：
-
-- 浏览器发的是跨域（CORS）请求，API 只在请求带有 `anthropic-dangerous-direct-browser-access: true` 请求头时才接受。代码在 `js/ai.js` 里加了这个头，你不需要做任何额外配置。
-- 官方并不推荐把 key 放在网页里，因为能打开页面的人都能读到它。这个游戏之所以可以这样做：key 是你自己粘贴的，只存在这台设备的 `localStorage`，直接发给 `api.anthropic.com`，不写进代码、环境变量或仓库，也不经过任何别的服务器。
+- 接口需遵循 OpenAI 的 `POST {Base URL}/chat/completions` 格式，用 `Authorization: Bearer <key>` 认证。
+- 浏览器发的是跨域（CORS）请求，服务商必须允许浏览器直连。不允许的话会提示“连不上 API”，这时需要自己架一层代理。
+- 把 key 放在网页里并不安全，因为能打开页面的人都能读到它。这个游戏之所以可以这样做：key 是你自己粘贴的，只存在这台设备的 `localStorage`，直接发给你填的接口地址，不写进代码或仓库，也不经过任何别的服务器。
 - 所以请注意：**不要在公用设备上填 key**；清除浏览器网站数据会把 key 一起清掉；如果怀疑泄露，去 Console 里把这个 key 停用。
 - 开启了零数据保留（ZDR）或 Compliance API 的组织不能从浏览器直连，会返回 401，这时游戏会提示并改用预设台词。
 
@@ -108,7 +107,7 @@ js/scenery.js         窗外风景（实时画在一张画布上）
 js/player.js          玩家角色
 js/xiaoxing.js        小星的模型、行为、预设台词
 js/nav.js             寻路
-js/ai.js              调用 Claude API、提示词、设置
+js/ai.js              调用 OpenAI 兼容接口（默认 DeepSeek）、提示词、设置
 js/memory.js          事件记录（记忆）
 js/panels.js          聊天框、设置页、记忆本
 js/ui.js              时钟、按钮、气泡、弹窗

@@ -1,13 +1,8 @@
-// 小星的 AI 对话：浏览器直接调用 Claude API。
+// 小星的 AI 对话：浏览器直接调用任意 OpenAI 兼容的 Chat Completions 接口
+// （DeepSeek、OpenAI、通义、Moonshot、OpenRouter、本地 Ollama 等都可以，在设置里改 Base URL 和模型名）。
 //
-// 关于“浏览器直连”（依据 Anthropic 官方文档 Authentication → Browser-based applications）：
-// - 浏览器发出的是跨域（CORS）请求，API 只在请求带有
-//   `anthropic-dangerous-direct-browser-access: true` 这个请求头时才接受。
-// - 官方不建议把 key 放在网页里，因为能打开页面的人都能读到它。这里之所以可以接受：
-//   key 由玩家自己粘贴，只存在这台设备的 localStorage，不进代码、不进仓库，也不经过任何服务器。
-// - 开启了零数据保留（ZDR）或 Compliance API 的组织不能从浏览器调用，会返回 401，
-//   提示以 “CORS requests are not allowed for this Organization” 开头。
-// - 没有绑定到单个 workspace 的 key 还需要 `anthropic-workspace-id` 请求头（设置页里可填）。
+// - key 由玩家自己粘贴，只存在这台设备的 localStorage，不进代码、不进仓库，也不经过别的服务器。
+// - 浏览器发的是跨域（CORS）请求，所用的服务必须允许浏览器直连，否则会提示“连不上 API”。
 //
 // 这里没有用官方 SDK：项目是无构建的纯静态页面，一个 fetch 就够了。
 import { DEFAULT_NAME } from './config.js';
@@ -17,9 +12,8 @@ import { PRESET_LINES } from './xiaoxing.js';
 
 const SETTINGS_KEY = 'starhome.settings.v1';
 const CHAT_KEY = 'starhome.chat.v1';
-const API_URL = 'https://api.anthropic.com/v1/messages';
-const API_VERSION = '2026-10-21';
-export const DEFAULT_MODEL = 'claude-opus-5-5';
+export const DEFAULT_BASE_URL = 'https://api.deepseek.com';
+export const DEFAULT_MODEL = 'deepseek-chat';
 const MAX_TOKENS = 600; // 每次回复的硬上限（模型的思考也算在里面）
 const MAX_SENTENCES = 3; // 小星每次最多说三句
 const HISTORY_FOR_PROMPT = 10; // 带进提示词的最近对话句数
@@ -29,10 +23,17 @@ function read(key, fallback) {
 }
 function write(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* 忽略 */ } }
 
-export const settings = Object.assign({ name: '', apiKey: '', model: DEFAULT_MODEL, workspaceId: '' }, read(SETTINGS_KEY, {}));
+export const settings = Object.assign({ name: '', apiKey: '', model: DEFAULT_MODEL, baseUrl: DEFAULT_BASE_URL }, read(SETTINGS_KEY, {}));
+delete settings.workspaceId;
+// 旧版本存的是 Claude 的 key 和模型名，换成通用接口后不能再用
+if (/^claude/i.test(settings.model || '') || /^sk-ant-/.test(settings.apiKey || '')) {
+  settings.model = DEFAULT_MODEL; settings.baseUrl = DEFAULT_BASE_URL;
+  if (/^sk-ant-/.test(settings.apiKey || '')) settings.apiKey = '';
+}
 export function saveSettings(patch) {
   Object.assign(settings, patch);
   settings.model = (settings.model || '').trim() || DEFAULT_MODEL;
+  settings.baseUrl = (settings.baseUrl || '').trim() || DEFAULT_BASE_URL;
   write(SETTINGS_KEY, settings);
 }
 export const playerName = () => (settings.name || '').trim() || DEFAULT_NAME;
@@ -94,54 +95,50 @@ function presetLine() {
   return lines[Math.floor(Math.random() * lines.length)].replace('{name}', playerName());
 }
 
-const noEffort = new Set(); // 不支持 effort 参数的模型，记下来之后不再发
+// 兼容写法：Base URL 可以填到根（https://api.deepseek.com）、/v1，或完整的 /chat/completions
+function endpoint() {
+  const base = (settings.baseUrl || DEFAULT_BASE_URL).trim().replace(/\/+$/, '');
+  return /\/chat\/completions$/.test(base) ? base : `${base}/chat/completions`;
+}
 
 async function callAPI(userText) {
   const model = settings.model || DEFAULT_MODEL;
   const headers = {
     'content-type': 'application/json',
-    'x-api-key': settings.apiKey.trim(),
-    'anthropic-version': API_VERSION,
-    'anthropic-dangerous-direct-browser-access': 'true',
+    authorization: `Bearer ${settings.apiKey.trim()}`,
   };
-  if ((settings.workspaceId || '').trim()) headers['anthropic-workspace-id'] = settings.workspaceId.trim();
-  const base = { model, max_tokens: MAX_TOKENS, system: systemPrompt(), messages: buildMessages(userText) };
+  const body = {
+    model,
+    max_tokens: MAX_TOKENS,
+    messages: [{ role: 'system', content: systemPrompt() }, ...buildMessages(userText)],
+  };
 
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const body = noEffort.has(model) ? base : { ...base, output_config: { effort: 'low' } };
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 45000);
-    let res;
-    try {
-      session.calls++;
-      res = await fetch(API_URL, { method: 'POST', headers, body: JSON.stringify(body), signal: ctrl.signal });
-    } catch (e) {
-      throw new Error(e.name === 'AbortError' ? '等了很久也没有回应，可能是网络不太好。' : '连不上 API，检查一下网络。');
-    } finally { clearTimeout(timer); }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 45000);
+  let res;
+  try {
+    session.calls++;
+    res = await fetch(endpoint(), { method: 'POST', headers, body: JSON.stringify(body), signal: ctrl.signal });
+  } catch (e) {
+    throw new Error(e.name === 'AbortError' ? '等了很久也没有回应，可能是网络不太好。' : '连不上 API，检查一下网络和 Base URL（也要确认该服务允许浏览器直连）。');
+  } finally { clearTimeout(timer); }
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.stop_reason === 'refusal') throw new Error('这句话模型没有回答。');
-      const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-      if (!text) throw new Error(data.stop_reason === 'max_tokens' ? '回复被长度上限截断了，换个说法再试一次。' : '模型没有说话。');
-      return trimReply(text);
-    }
-
-    let msg = '';
-    try { msg = (await res.json()).error?.message || ''; } catch { /* 不是 JSON */ }
-    if (res.status === 400 && !noEffort.has(model) && /effort|output_config/i.test(msg)) { noEffort.add(model); continue; }
-    if (res.status === 401) {
-      throw new Error(/CORS requests are not allowed/i.test(msg)
-        ? '这个 key 所在的组织不允许从浏览器直接调用（开启了零数据保留或 Compliance API）。'
-        : 'API key 无效或已过期，去设置里检查一下。');
-    }
-    if (res.status === 400 && /workspace/i.test(msg)) throw new Error('这个 key 没有绑定 workspace，需要在设置里填 Workspace ID。');
-    if (res.status === 404) throw new Error(`找不到模型“${model}”，去设置里检查模型名。`);
-    if (res.status === 429) throw new Error('调用太频繁或额度用完了，等一会儿再试。');
-    if (res.status >= 500) throw new Error('API 那边暂时出了点问题，等一会儿再试。');
-    throw new Error(msg ? `请求没成功：${msg.slice(0, 120)}` : `请求没成功（${res.status}）。`);
+  if (res.ok) {
+    const data = await res.json();
+    const choice = data.choices?.[0];
+    const text = (choice?.message?.content || '').trim();
+    if (!text) throw new Error(choice?.finish_reason === 'length' ? '回复被长度上限截断了，换个说法再试一次。' : '模型没有说话。');
+    return trimReply(text);
   }
-  throw new Error('请求没成功。');
+
+  let msg = '';
+  try { const j = await res.json(); msg = j.error?.message || j.message || ''; } catch { /* 不是 JSON */ }
+  if (res.status === 401) throw new Error('API key 无效或已过期，去设置里检查一下。');
+  if (res.status === 402) throw new Error('账户余额不足，去服务商那边充值后再试。');
+  if (res.status === 404) throw new Error(`找不到接口或模型“${model}”，去设置里检查 Base URL 和模型名。`);
+  if (res.status === 429) throw new Error('调用太频繁或额度用完了，等一会儿再试。');
+  if (res.status >= 500) throw new Error('API 那边暂时出了点问题，等一会儿再试。');
+  throw new Error(msg ? `请求没成功：${msg.slice(0, 120)}` : `请求没成功（${res.status}）。`);
 }
 
 // 对外只有这一个入口：返回 { text, source: 'ai' | 'preset', error? }

@@ -78,19 +78,19 @@
     <label>小星怎么称呼你
       <input id="set-name" type="text" maxlength="12" placeholder="小颖" autocomplete="off">
     </label>
-    <label>API key（Anthropic）
+    <label>API key
       <div class="field-row">
-        <input id="set-key" type="password" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input id="set-key" type="password" placeholder="sk-…" autocomplete="off" autocapitalize="off" spellcheck="false">
         <button id="set-key-show" class="chip" type="button">显示</button>
         <button id="set-key-clear" class="chip" type="button">清除</button>
       </div>
     </label>
-    <p class="hint">key 只保存在这台设备的浏览器里，直接发给 Anthropic 的 API，不经过别的服务器。不填也能玩，小星会说预设台词。请不要在公用设备上填。</p>
-    <label>模型名
-      <input id="set-model" type="text" placeholder="claude-opus-5-5" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p class="hint">key 只保存在这台设备的浏览器里，直接发给下面填的接口地址，不经过别的服务器。不填也能玩，小星会说预设台词。请不要在公用设备上填。</p>
+    <label>Base URL（OpenAI 兼容接口）
+      <input id="set-base" type="text" placeholder="https://api.deepseek.com" autocomplete="off" autocapitalize="off" spellcheck="false">
     </label>
-    <label>Workspace ID（一般留空）
-      <input id="set-workspace" type="text" placeholder="wrkspc_…  只有 key 没绑定 workspace 时才需要" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <label>模型名
+      <input id="set-model" type="text" placeholder="deepseek-chat" autocomplete="off" autocapitalize="off" spellcheck="false">
     </label>
     <p class="stat">本次会话调用次数：<b id="session-calls">0</b></p>
     <div class="btn-row">
