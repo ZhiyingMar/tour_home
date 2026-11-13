@@ -9,6 +9,8 @@ import { Nav } from './nav.js';
 import { Scenery } from './scenery.js';
 import { buildRoom } from './room.js';
 import { buildOutdoor } from './outdoor.js';
+import { createPost } from './post.js';
+import { applyTextures } from './textures.js';
 import { Player } from './player.js';
 import { XiaoXing } from './xiaoxing.js';
 import { ui } from './ui.js';
@@ -19,7 +21,11 @@ import { chat, initPanels } from './panels.js';
 
 const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// 画质档位：2 = 全开，1 = 降低分辨率，0 = 关掉后期。帧率不够会自动往下掉；网址加 ?quality=0/1/2 可以锁定
+const qLock = new URLSearchParams(location.search).get('quality');
+let quality = qLock != null ? Number(qLock) : 2;
+const pixelRatio = () => Math.min(window.devicePixelRatio || 1, quality === 2 ? 2 : 1.5);
+renderer.setPixelRatio(pixelRatio());
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.NeutralToneMapping;
@@ -30,6 +36,8 @@ const bgColor = new THREE.Color('#1b1624');
 scene.background = bgColor;
 const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 220);
 
+applyTextures();
+const post = createPost(renderer, scene, camera);
 const scenery = new Scenery();
 const room = buildRoom(scene, scenery.tex);
 const outdoor = buildOutdoor(scene);
@@ -52,7 +60,10 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) persi
 // ───── 镜头 ─────
 function fit() {
   const w = innerWidth, h = innerHeight;
+  renderer.setPixelRatio(pixelRatio());
   renderer.setSize(w, h, false);
+  post.setSize(w, h, pixelRatio());
+  post.enabled = quality > 0;
   camera.aspect = w / h;
   const hHalf = Math.atan(7.9 / 16.2); // 让整面后墙都落在画面里
   camera.fov = clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hHalf) / camera.aspect)), 27, 62);
@@ -285,8 +296,22 @@ setInterval(() => ui.setClock(hourNow()), 5000);
 const clock = new THREE.Clock();
 let sleepK = 0, firstFrame = true;
 
+// 帧率看门狗：连续几秒都低于 40 帧就降一档画质，保证 iPad 上先流畅
+const focus = new THREE.Vector3();
+let fpsT = 0, fpsN = 0, lowStreak = 0;
+function watchFps(raw) {
+  if (!started || qLock != null || quality === 0 || document.hidden) return;
+  fpsT += raw; fpsN++;
+  if (fpsT < 2) return;
+  const fps = fpsN / fpsT; fpsT = 0; fpsN = 0;
+  if (intro < 1 || fps < 8) { lowStreak = 0; return; } // 开场动画、切到后台时不算
+  lowStreak = fps < 40 ? lowStreak + 1 : 0;
+  if (lowStreak >= 3) { lowStreak = 0; quality--; fit(); }
+}
+
 function frame() {
-  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  const raw = clock.getDelta(), dt = Math.min(raw, 0.05), t = clock.elapsedTime;
+  watchFps(raw);
   const h = hourNow(), dl = daylight(h), wm = warmth(h);
 
   player.update(dt, t);
@@ -345,7 +370,9 @@ function frame() {
   hint.scale.setScalar(0.42 + Math.sin(t * 3) * 0.05);
 
   ui.update(dt, camera);
-  renderer.render(scene, camera);
+  scene.environmentIntensity = (0.05 + 0.05 * dl) * (1 - 0.5 * sleepK);
+  if (post.enabled) post.render(focus.set(pp.x, pp.y + 1, pp.z), 1 - dl, out ? 0.8 : 1);
+  else renderer.render(scene, camera);
   if (firstFrame) { firstFrame = false; ui.ready(); }
   requestAnimationFrame(frame);
 }

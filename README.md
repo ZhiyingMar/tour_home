@@ -15,6 +15,8 @@ python3 -m http.server 8765
 
 然后打开 <http://localhost:8765>。
 
+画面卡顿时游戏会自动降低画质；也可以在网址后加 `?quality=0`（关后期）、`1`（低分辨率）、`2`（全开）来锁定。
+
 想预览别的时段，在网址后面加 `?hour=`，例如 `?hour=6.5`（朝霞）、`?hour=14`（午后）、`?hour=22`（深夜）。
 
 ## 怎么玩
@@ -100,6 +102,8 @@ js/main.js            入口：场景、输入、互动、主循环
 js/room.js            小屋、家具、灯光、壁炉
 js/outdoor.js         屋外：小屋外观、池塘、铁路、无限延伸的草木、天空
 js/bend.js            让地平线向下弯的着色器补丁
+js/post.js            后期效果：泛光、移轴景深、环境反射
+js/textures.js        程序生成的材质纹理：木纹、布纹、石头、墙纸、屋瓦
 js/scenery.js         窗外风景（实时画在一张画布上）
 js/player.js          玩家角色
 js/xiaoxing.js        小星的模型、行为、预设台词

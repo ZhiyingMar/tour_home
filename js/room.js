@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { ROOM } from './config.js';
 import { hourNow } from './time.js';
 import { lerp, damp, rand, rng, canvasTex, glowTex, mat, rbox, ball, cyl, at, starShape } from './util.js';
+import { wallMaterial, panelMaterial, weaveTex } from './textures.js';
 
 const C = {
   wall: '#f4e4c9', wainscot: '#e9cda6', trim: '#fff6e6',
@@ -49,7 +50,7 @@ export function buildRoom(scene, sceneryTex) {
       c.fillStyle = 'rgba(120,75,40,.32)'; c.fillRect(0, j * rh, w, 2);
     }
   });
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.75 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ map: floorTex, bumpMap: floorTex, bumpScale: 0.7, roughness: 0.5 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
   add(floor, 0, 0, zc);
   add(plain(W + 0.6, 0.5, D + 0.3, C.woodDark), 0, -0.26, zc - 0.15);
@@ -57,17 +58,24 @@ export function buildRoom(scene, sceneryTex) {
   // ───── 墙（后墙绕着窗洞拼四块）─────
   const win = { x0: -1.8, x1: 2.6, y0: 1.35, y1: 3.45 };
   const wz = ROOM.z0 - 0.15, H = ROOM.h;
-  add(plain(win.x0 - ROOM.x0, H, 0.3, C.wall), (ROOM.x0 + win.x0) / 2, H / 2, wz);
-  add(plain(ROOM.x1 - win.x1, H, 0.3, C.wall), (ROOM.x1 + win.x1) / 2, H / 2, wz);
-  add(plain(win.x1 - win.x0, H - win.y1, 0.3, C.wall), (win.x0 + win.x1) / 2, (H + win.y1) / 2, wz);
-  add(plain(win.x1 - win.x0, win.y0, 0.3, C.wall), (win.x0 + win.x1) / 2, win.y0 / 2, wz);
-  add(plain(0.3, H, D + 0.3, C.wall), ROOM.x0 - 0.15, H / 2, zc - 0.15);
-  add(plain(0.3, H, D + 0.3, C.wall), ROOM.x1 + 0.15, H / 2, zc - 0.15);
+  // 贴墙纸的墙：u0/v0 是这块墙左下角在整面墙上的位置，几块拼起来花纹才对得上
+  const wall = (w, h, d, u0, v0, uLen, vLen) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMaterial(C.wall, u0, v0, uLen, vLen));
+    m.receiveShadow = true;
+    return m;
+  };
+  const paneled = (w, h, d, len) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), panelMaterial(C.wainscot, len)); m.receiveShadow = true; return m; };
+  add(wall(win.x0 - ROOM.x0, H, 0.3, 0, 0, win.x0 - ROOM.x0, H), (ROOM.x0 + win.x0) / 2, H / 2, wz);
+  add(wall(ROOM.x1 - win.x1, H, 0.3, win.x1 - ROOM.x0, 0, ROOM.x1 - win.x1, H), (ROOM.x1 + win.x1) / 2, H / 2, wz);
+  add(wall(win.x1 - win.x0, H - win.y1, 0.3, win.x0 - ROOM.x0, win.y1, win.x1 - win.x0, H - win.y1), (win.x0 + win.x1) / 2, (H + win.y1) / 2, wz);
+  add(wall(win.x1 - win.x0, win.y0, 0.3, win.x0 - ROOM.x0, 0, win.x1 - win.x0, win.y0), (win.x0 + win.x1) / 2, win.y0 / 2, wz);
+  add(wall(0.3, H, D + 0.3, 0, 0, D + 0.3, H), ROOM.x0 - 0.15, H / 2, zc - 0.15);
+  add(wall(0.3, H, D + 0.3, 0, 0, D + 0.3, H), ROOM.x1 + 0.15, H / 2, zc - 0.15);
   // 墙裙和踢脚线
-  add(plain(W, 1.05, 0.06, C.wainscot), 0, 0.525, ROOM.z0 + 0.03);
+  add(paneled(W, 1.05, 0.06, W), 0, 0.525, ROOM.z0 + 0.03);
   add(plain(W, 0.07, 0.09, C.trim), 0, 1.08, ROOM.z0 + 0.045);
   for (const sx of [-1, 1]) {
-    add(plain(0.06, 1.05, D, C.wainscot), sx * (ROOM.x1 - 0.03), 0.525, zc);
+    add(paneled(0.06, 1.05, D, D), sx * (ROOM.x1 - 0.03), 0.525, zc);
     add(plain(0.09, 0.07, D, C.trim), sx * (ROOM.x1 - 0.045), 1.08, zc);
   }
 
@@ -172,7 +180,7 @@ export function buildRoom(scene, sceneryTex) {
       c.fill(); c.restore();
     }
   });
-  add(rbox(2.06, 0.62, 1.85, new THREE.MeshStandardMaterial({ map: duvetTex, roughness: 1 }), 0.26), 0, 0.93, 0.43, bed);
+  add(rbox(2.06, 0.62, 1.85, new THREE.MeshStandardMaterial({ map: duvetTex, bumpMap: weaveTex, bumpScale: 1.2, roughness: 1 }), 0.26), 0, 0.93, 0.43, bed);
   add(rbox(2.08, 0.2, 0.34, C.cream, 0.1), 0, 1.16, -0.4, bed);
   hit('bed', 2.2, 1.4, 2.9, 4.65, 0.7, -1.9);
   // 床头的画
@@ -213,7 +221,7 @@ export function buildRoom(scene, sceneryTex) {
   add(rbox(0.3, 0.38, 0.06, C.cream, 0.03), -0.95, 2.33, 0.4, fp).rotation.x = -0.15;
   add(rbox(0.22, 0.3, 0.02, '#f6b8a8', 0.01), -0.95, 2.33, 0.44, fp).rotation.x = -0.15;
   add(cyl(0.07, 0.07, 0.3, C.cream, 12), 0.95, 2.29, 0.45, fp);
-  const candleFlame = add(ball(0.035, new THREE.MeshBasicMaterial({ color: '#ffd27a', toneMapped: false }), 1, 1.6, 1), 0.95, 2.5, 0.45, fp);
+  const candleFlame = add(ball(0.035, new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffd27a').multiplyScalar(2.2), toneMapped: false }), 1, 1.6, 1), 0.95, 2.5, 0.45, fp);
   // 挂钟（走的是真实时间）
   const clock = new THREE.Group(); add(clock, 0, 3.1, 0.52, fp);
   const face = cyl(0.36, 0.36, 0.06, C.cream, 28); face.rotation.x = Math.PI / 2; clock.add(face);
@@ -228,7 +236,7 @@ export function buildRoom(scene, sceneryTex) {
   const flameGeo = new THREE.ConeGeometry(1, 2.4, 14);
   flameGeo.translate(0, 1.2, 0);
   for (const [x, z, s, col] of [[0, 0, 0.3, '#ff8a3c'], [-0.26, 0.03, 0.2, '#ff9a45'], [0.27, -0.02, 0.21, '#ff9a45'], [0.02, 0.05, 0.19, '#ffc85a'], [0, 0.09, 0.1, '#fff3b5']]) {
-    const m = new THREE.Mesh(flameGeo, new THREE.MeshBasicMaterial({ color: col, toneMapped: false, transparent: true, opacity: 0.95 }));
+    const m = new THREE.Mesh(flameGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(3.2), toneMapped: false, transparent: true, opacity: 0.95 }));
     m.position.set(x, 0, z); m.userData.s = s; m.userData.ph = Math.random() * 9;
     fg.add(m); fire.flames.push(m);
   }
@@ -323,17 +331,17 @@ export function buildRoom(scene, sceneryTex) {
     const dim = 1 - 0.6 * sleep, moon = out ? 1.9 : 1; // 屋外的夜里有月光，亮一些
     mix(hemi.color, '#7484c8', '#fff3e0', dl, '#ffd2a8', wm * 0.5);
     mix(hemi.groundColor, '#2c2a4c', '#e6c8a2', dl, '#e6a880', wm * 0.4);
-    hemi.intensity = lerp(0.62 * moon, 2.0, dl) * dim;
+    hemi.intensity = lerp(0.62 * moon, 1.6, dl) * dim;
     mix(key.color, '#93a6ff', '#fff0dc', dl, '#ffb27a', wm * 0.6);
-    key.intensity = lerp(0.42 * moon, 2.3, dl) * dim;
+    key.intensity = lerp(0.42 * moon, 2.05, dl) * dim;
 
     lampK = damp(lampK, dl < 0.5 && sleep < 0.3 ? 1 : 0, 3, dt);
     lampLight.intensity = lampK * 9;
     deskLight.intensity = lampK * 3.5;
-    shadeMat.emissiveIntensity = lampK * 1.4;
-    deskShade.emissiveIntensity = lampK * 1.1;
+    shadeMat.emissiveIntensity = lampK * 3.2;
+    deskShade.emissiveIntensity = lampK * 2.8;
     const bulbOn = dl < 0.6 ? 1 : 0.15;
-    bulbMats.forEach((m, i) => { m.emissiveIntensity = bulbOn * (1.3 + 0.35 * Math.sin(t * 1.3 + i * 2.1)); });
+    bulbMats.forEach((m, i) => { m.emissiveIntensity = bulbOn * (2.6 + 0.6 * Math.sin(t * 1.3 + i * 2.1)); });
     candleFlame.scale.y = 1.6 + Math.sin(t * 9) * 0.25;
 
     mix(patchMat.color, '#8fa8ff', '#fff2cf', dl, '#ffb98a', wm * 0.7);
@@ -353,7 +361,7 @@ export function buildRoom(scene, sceneryTex) {
       f.scale.set(s * L * (1.05 - 0.1 * w), s * L * w, s * L);
       f.rotation.z = Math.sin(t * 5 + ph) * 0.12;
     }
-    fireLight.intensity = L * flick * lerp(34, 20, dl);
+    fireLight.intensity = L * flick * lerp(22, 14, dl);
     glowMat.opacity = L * flick * lerp(0.6, 0.3, dl);
     floorGlowMat.opacity = L * flick * lerp(0.42, 0.14, dl);
     eMat.opacity = L;

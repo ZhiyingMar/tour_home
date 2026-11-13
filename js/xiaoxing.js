@@ -266,7 +266,7 @@ export class XiaoXing {
     this.tail.rotation.y = Math.sin(t * 1.6) * (resting ? 0.06 : 0.16);
     this.ball.rotation.y = t * 0.15;
     const tw = 0.85 + 0.1 * Math.sin(t * 2.3) + 0.05 * Math.sin(t * 5.1 + 1);
-    this.tailMat.emissiveIntensity = tw * lerp(0.45, 1.1, night) + this.flare * 1.2;
+    this.tailMat.emissiveIntensity = tw * lerp(0.5, 1.8, night) + this.flare * 1.6;
     this.glowMat.opacity = lerp(0.03, 0.16, night) * tw + this.flare * 0.25;
     const gs = 1.15 + this.flare * 0.3;
     this.glow.scale.set(gs, gs, 1);

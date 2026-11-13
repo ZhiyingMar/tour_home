@@ -393,9 +393,9 @@ export function buildOutdoor(scene) {
 
     lampK = damp(lampK, dl < 0.5 ? 1 : 0, 3, dt);
     lanternLight.intensity = lampK * 10;
-    lanternMat.emissiveIntensity = lampK * 1.6;
-    winMat.emissiveIntensity = lampK * 1.3;
-    trainWin.emissiveIntensity = lampK * 1.4;
+    lanternMat.emissiveIntensity = lampK * 2.8;
+    winMat.emissiveIntensity = lampK * 3.0;
+    trainWin.emissiveIntensity = lampK * 2.3;
     waterMat.color.set(mix3('#2f4390', '#6fc3ea', '#f0a58c', dl, wm * 0.25)); waterMat.emissive.copy(waterMat.color);
     water.position.y = 0.04 + Math.sin(t * 1.3) * 0.006;
 
