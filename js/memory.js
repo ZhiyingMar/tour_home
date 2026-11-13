@@ -14,6 +14,9 @@ const LABEL = {
   read_letter: '读了桌上的信',
   pet_xiaoxing: '摸了摸小星',
   chat: '和小星聊天',
+  go_outside: '出门去屋外走了走',
+  come_home: '回到了屋里',
+  sit_bench: '在池塘边的长椅上坐了一会儿',
 };
 // 这几类短时间内重复发生时只记一次，免得刷屏
 const QUIET = { pet_xiaoxing: 3 * 60e3, chat: 10 * 60e3 };

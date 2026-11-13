@@ -1,6 +1,6 @@
 // 小星：拟人站姿的小松鼠，尾巴是一颗装着星空的圆球。自己闲逛、跟着主人、趴沙发扶手、窝在壁炉旁。
 import * as THREE from 'three';
-import { damp, lerp, lerpAngle, rand, pick, rng, canvasTex, ball, at, glowTex, sparkTex, stepPath } from './util.js';
+import { damp, lerp, lerpAngle, rand, pick, rng, canvasTex, ball, at, glowTex, sparkTex, stepPathNav } from './util.js';
 import { hourNow, periodName } from './time.js';
 
 const ARM = new THREE.Vector3(-1.0, 0.98, -2.62); // 沙发左扶手顶上
@@ -29,7 +29,7 @@ export class XiaoXing {
     this.yaw = 0.6; this.path = []; this.then = null;
     this.state = 'idle'; this.timer = 2.5;
     this.flat = 0; this.curl = 0; this.hop = 0; this.flare = 0; this.reactT = 0; this.spin = 0;
-    this.tw = null; this.where = 'floor'; this.headY = 0.73;
+    this.tw = null; this.where = 'floor'; this.area = 'indoor'; this.headY = 0.73;
     this.build();
     scene.add(this.root);
   }
@@ -140,9 +140,24 @@ export class XiaoXing {
 
   goCurl(spot, yaw) { this.moveTo(spot, () => this.rest('curl', rand(16, 32), yaw)); }
 
+  // 换地方（进屋 / 出门）：直接出现在主人身边，从头开始
+  enter(area, nav, x, z) {
+    this.area = area; this.nav = nav;
+    const p = nav.nearest(x, z);
+    this.pos.set(p.x, 0, p.z);
+    this.path = []; this.then = null; this.tw = null; this.where = 'floor';
+    this.state = 'idle'; this.timer = 1.2;
+  }
+
   decide() {
     const { player, fire } = this.ctx, r = Math.random();
     const dist = Math.hypot(player.pos.x - this.pos.x, player.pos.z - this.pos.z);
+    if (this.area === 'outdoor') {
+      // 屋外：一直跟在主人附近，偶尔自己转一圈或者原地窝一会儿
+      const a = Math.random() * Math.PI * 2, rad = dist > 3.2 ? 1.3 : 1.2 + Math.random() * 2.6;
+      if (dist < 3.2 && r < 0.22) return this.rest('curl', rand(7, 14), 0.3);
+      return this.moveTo({ x: player.pos.x + Math.cos(a) * rad, z: player.pos.z + Math.sin(a) * rad }, null);
+    }
     if (player.state === 'lie' && r < 0.75) return this.goCurl(BEDSIDE, 0.4);
     if (player.state === 'sit' && r < 0.7) return this.goPerch();
     if (fire.lit && r < 0.5) return this.goCurl(HEARTH, -0.9);
@@ -177,12 +192,19 @@ export class XiaoXing {
     let moving = false, faceYaw = null;
 
     if (this.reactT > 0) this.reactT -= dt;
+    if (this.area === 'outdoor') {
+      const p = this.ctx.player.pos, far = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
+      if (far > 30) this.enter('outdoor', this.nav, p.x + 1.2, p.z + 0.8);
+      else if (far > 5.5 && (this.state === 'idle' || this.state === 'curl')) { this.state = 'idle'; this.timer = 0; }
+      else if (far > 7 && this.state === 'move' && this.path.length && Math.hypot(this.path[0].x - p.x, this.path[0].z - p.z) > 5) { this.state = 'idle'; this.timer = 0; }
+    }
     switch (this.state) {
       case 'idle':
         if ((this.timer -= dt) < 0) this.decide();
         break;
       case 'move': {
-        const d = stepPath(this.pos, this.path, 3.3, dt);
+        const d = stepPathNav(this.pos, this.path, this.area === 'outdoor' ? 4.2 : 3.3, dt, this.nav, this);
+        if (d.blocked) this.then = null;
         if (d.dx || d.dz) faceYaw = Math.atan2(d.dx, d.dz);
         moving = true;
         if (!this.path.length) {

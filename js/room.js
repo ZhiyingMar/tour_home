@@ -281,7 +281,7 @@ export function buildRoom(scene, sceneryTex) {
   const inner = plain(0.02, 0.58, 0.58, '#3f4a7a'); add(inner, 0.03, 0, 0, frame);
   hit('letter', 1.1, 0.9, 1.3, -5.3, 1.25, 1.75);
 
-  // ───── 门（厨房扩展位）─────
+  // ───── 门（通往屋外）─────
   const door = new THREE.Group(); add(door, ROOM.x1 - 0.03, 0, 1.3);
   add(rbox(0.1, 2.5, 1.36, C.trim, 0.04), 0, 1.25, 0, door);
   add(rbox(0.1, 2.36, 1.16, '#dba878', 0.05), -0.03, 1.2, 0, door);
@@ -304,7 +304,7 @@ export function buildRoom(scene, sceneryTex) {
   key.position.set(5, 11, 8); key.target.position.set(0, 0, -0.5);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
-  Object.assign(key.shadow.camera, { left: -9, right: 9, top: 8, bottom: -8, near: 1, far: 32 });
+  Object.assign(key.shadow.camera, { left: -13, right: 13, top: 11, bottom: -11, near: 1, far: 40 });
   key.shadow.bias = -0.0004; key.shadow.normalBias = 0.035; key.shadow.radius = 5;
   scene.add(key, key.target);
 
@@ -319,13 +319,13 @@ export function buildRoom(scene, sceneryTex) {
   const mix = (target, night, day, dl, warm, wk) => target.copy(cA.set(night)).lerp(cB.set(day), dl).lerp(cA.set(warm), wk);
   let lampK = 0;
 
-  function setEnv({ dl, wm, sleep, t, dt }) {
-    const dim = 1 - 0.6 * sleep;
+  function setEnv({ dl, wm, sleep, t, dt, out }) {
+    const dim = 1 - 0.6 * sleep, moon = out ? 1.9 : 1; // 屋外的夜里有月光，亮一些
     mix(hemi.color, '#7484c8', '#fff3e0', dl, '#ffd2a8', wm * 0.5);
     mix(hemi.groundColor, '#2c2a4c', '#e6c8a2', dl, '#e6a880', wm * 0.4);
-    hemi.intensity = lerp(0.62, 2.0, dl) * dim;
+    hemi.intensity = lerp(0.62 * moon, 2.0, dl) * dim;
     mix(key.color, '#93a6ff', '#fff0dc', dl, '#ffb27a', wm * 0.6);
-    key.intensity = lerp(0.42, 2.3, dl) * dim;
+    key.intensity = lerp(0.42 * moon, 2.3, dl) * dim;
 
     lampK = damp(lampK, dl < 0.5 && sleep < 0.3 ? 1 : 0, 3, dt);
     lampLight.intensity = lampK * 9;
@@ -398,5 +398,5 @@ export function buildRoom(scene, sceneryTex) {
     door: new THREE.Vector3(5.75, 2.75, 1.3),
   };
 
-  return { obstacles, hits, fire, anchors, setEnv };
+  return { group: g, key, obstacles, hits, fire, anchors, setEnv };
 }

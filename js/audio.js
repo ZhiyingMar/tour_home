@@ -67,6 +67,8 @@ export const audio = {
       case 'sit': tone(170, 0.16, { vol: 0.12, to: 90 }); noise(0.12, { vol: 0.05, freq: 300 }); break;
       case 'sleep': [659, 523, 392].forEach((f, i) => tone(f, 0.7, { vol: 0.07, delay: i * 0.22, type: 'triangle' })); break;
       case 'wake': [392, 523, 659].forEach((f, i) => tone(f, 0.4, { vol: 0.07, delay: i * 0.12, type: 'triangle' })); break;
+      case 'door': tone(190, 0.12, { vol: 0.12, to: 120 }); noise(0.2, { vol: 0.05, freq: 500, delay: 0.05 }); break;
+      case 'whistle': tone(880, 0.55, { vol: 0.05, type: 'triangle' }); tone(1108, 0.55, { vol: 0.04, type: 'triangle' }); tone(880, 0.8, { vol: 0.05, type: 'triangle', delay: 0.7 }); tone(1108, 0.8, { vol: 0.04, type: 'triangle', delay: 0.7 }); break;
       case 'knock': tone(140, 0.09, { vol: 0.14, to: 100 }); tone(140, 0.09, { vol: 0.14, to: 100, delay: 0.16 }); break;
     }
   },

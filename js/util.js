@@ -109,3 +109,28 @@ export function stepPath(pos, path, speed, dt) {
   }
   return { dx, dz };
 }
+
+// 带碰撞的沿路前进：户外没有网格寻路，朝目标直走，撞到东西就贴着它绕过去；
+// 如果一阵子都没能离目标更近，就放弃（返回 blocked）
+export function stepPathNav(pos, path, speed, dt, nav, st) {
+  const bx = pos.x, bz = pos.z, target = path[0];
+  const d = stepPath(pos, path, speed, dt);
+  if (!nav || !nav.direct || !target) return d;
+  if (st.navTarget !== target) { st.navTarget = target; st.best = Infinity; st.stuck = 0; st.side = 0; }
+  if (!nav.walkable(pos.x, pos.z)) {
+    pos.x = bx; pos.z = bz;
+    if (!path.length) path.push(target);
+    const step = speed * dt, sides = st.side ? [st.side, -st.side] : [1, -1];
+    // 先认准一边绕到底，绕不过去再换另一边，免得左右来回抖
+    search: for (const sd of sides) {
+      for (const a of [0.8, 1.5, 2.2]) {
+        const c = Math.cos(a * sd), sn = Math.sin(a * sd), rx = d.dx * c - d.dz * sn, rz = d.dx * sn + d.dz * c;
+        if (nav.walkable(bx + rx * step, bz + rz * step)) { pos.x = bx + rx * step; pos.z = bz + rz * step; st.side = sd; d.dx = rx; d.dz = rz; break search; }
+      }
+    }
+  }
+  const left = Math.hypot(target.x - pos.x, target.z - pos.z);
+  if (left < st.best - 0.03) { st.best = left; st.stuck = 0; } else st.stuck += dt;
+  if (st.stuck > 3.5) { path.length = 0; st.navTarget = null; d.blocked = true; }
+  return d;
+}

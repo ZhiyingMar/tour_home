@@ -220,3 +220,9 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 .mem-del { min-width: 60px; min-height: 44px; border-radius: 999px; background: none; color: #c2493f; font-weight: 700; font-size: 15px; }
 .empty { text-align: center; color: var(--ink-soft); padding: 26px 10px; line-height: 1.6; }
 @media (max-height: 520px) { #chat-log { max-height: 22vh; } }
+
+/* ── 画面氛围：四角压暗 + 转场黑幕 ── */
+#vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 46%, rgba(0,0,0,0) 52%, rgba(24, 12, 30, .34) 100%); }
+#fade { position: fixed; inset: 0; background: #14101c; opacity: 0; pointer-events: none; transition: opacity .42s; }
+#fade.on { opacity: 1; pointer-events: auto; }
+#sleep { cursor: pointer; }

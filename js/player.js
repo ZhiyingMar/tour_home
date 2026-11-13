@@ -1,6 +1,6 @@
 // 玩家角色：圆头圆脑的小人，会走、会坐、会躺。
 import * as THREE from 'three';
-import { damp, lerpAngle, ball, cyl, at, mat, stepPath } from './util.js';
+import { damp, lerpAngle, ball, cyl, at, mat, stepPathNav } from './util.js';
 
 const SPEED = 2.7;
 
@@ -117,7 +117,8 @@ export class Player {
         this.yaw = lerpAngle(this.yaw, Math.atan2(dx, dz), Math.min(1, dt * 12));
         moving = true;
       } else if (this.path.length) {
-        const d = stepPath(this.pos, this.path, SPEED, dt);
+        const d = stepPathNav(this.pos, this.path, SPEED, dt, this.nav, this);
+        if (d.blocked) this.onArrive = null;
         if (d.dx || d.dz) this.yaw = lerpAngle(this.yaw, Math.atan2(d.dx, d.dz), Math.min(1, dt * 12));
         moving = true;
       }

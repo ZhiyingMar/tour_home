@@ -8,13 +8,15 @@ const bubbles = new Map(); // key → { el, anchor, life }
 let toastTimer = 0;
 
 export const ui = {
-  onStart: null, onAction: null, onSound: null, onClose: null,
+  onWake: null, onStart: null, onAction: null, onSound: null, onClose: null,
 
   init() {
     $('start').addEventListener('click', () => this.onStart && this.onStart());
     $('action').addEventListener('click', () => this.onAction && this.onAction());
     $('btn-sound').addEventListener('click', () => this.onSound && this.onSound());
     $('btn-help').addEventListener('click', () => this.open('help'));
+    // 睡觉的遮罩盖在画面上，点它就是起床
+    $('sleep').addEventListener('click', () => this.onWake && this.onWake());
     document.querySelectorAll('.modal').forEach((m) => {
       m.addEventListener('click', (e) => { if (e.target === m || e.target.hasAttribute('data-close')) this.closeAll(); });
     });
@@ -87,6 +89,8 @@ export const ui = {
     document.querySelectorAll('.modal').forEach((m) => m.classList.add('hidden'));
     if (was && this.onClose) this.onClose();
   },
+
+  fade(on) { $('fade').classList.toggle('on', on); },
 
   sleep(on) { $('sleep').classList.toggle('hidden', !on); },
 

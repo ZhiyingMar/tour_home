@@ -25,6 +25,11 @@ python3 -m http.server 8765
 | 互动 | 点物品，或走近后点右下角大按钮 | 同左，或按 E / 空格 |
 | 和小星聊天 | 点小星 | 点小星，Esc 关闭 |
 
+| 出门 / 回屋 | 点屋里右边的门；在屋外点小屋的门 | 同左 |
+| 缩放镜头 | 双指捏合 | 滚轮 |
+
+屋外有花园、池塘、长椅和一条铁路，草地和树林向四面八方无限延伸（远处的草木按坐标现算，没有边界），地平线是弯的。小星会一直跟着你。
+
 右上角四个按钮：📖 小星的记忆本、⚙️ 设置、🔊 声音、？ 操作说明。
 
 ## 小星的 AI 对话
@@ -93,6 +98,8 @@ css/style.css         界面样式
 js/config.js          房间尺寸、游戏名、信的文字、扩展开关
 js/main.js            入口：场景、输入、互动、主循环
 js/room.js            小屋、家具、灯光、壁炉
+js/outdoor.js         屋外：小屋外观、池塘、铁路、无限延伸的草木、天空
+js/bend.js            让地平线向下弯的着色器补丁
 js/scenery.js         窗外风景（实时画在一张画布上）
 js/player.js          玩家角色
 js/xiaoxing.js        小星的模型、行为、预设台词
@@ -116,6 +123,6 @@ vendor/               Three.js（r170，已放进仓库，不依赖 CDN）
 
 ## 预留的扩展位（现在都没实现）
 
-- **厨房与做菜**：右墙那扇"装修中"的门是入口，逻辑在 `js/main.js` 的 `acts.door`。新房间照 `buildRoom` 的写法写一个 `buildKitchen`。新动作在 `js/memory.js` 的 `LABEL` 里加一行就会进记忆。
+- **厨房与做菜**：屋里屋外的切换在 `js/main.js` 的 `switchArea`，厨房可以照这个方式作为第三个场景加进来（比如在左墙开一扇门），新房间照 `buildRoom` 的写法写一个 `buildKitchen`。新动作在 `js/memory.js` 的 `LABEL` 里加一行就会进记忆。
 - **联机**：玩家的所有动作都经过 `js/store.js` 的 `bus.emit('action', …)`，联机时在这里把事件同步出去。
 - **四季**：`js/scenery.js` 的 `PALETTES` 按季节加配色，再改 `js/config.js` 的 `SEASON`。
