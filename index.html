@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="星光小屋">
+<meta name="theme-color" content="#1b1624">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<title>星光小屋</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="bubbles"></div>
+
+<div id="hud" class="hidden">
+  <div id="clock" class="pill"><span id="clock-icon">☀️</span><span id="clock-time">--:--</span><span id="clock-period"></span></div>
+  <div id="tools">
+    <button id="btn-memory" class="round" aria-label="小星的记忆本">📖</button>
+    <button id="btn-settings" class="round" aria-label="设置">⚙️</button>
+    <button id="btn-sound" class="round" aria-label="声音">🔊</button>
+    <button id="btn-help" class="round" aria-label="操作说明">？</button>
+  </div>
+  <button id="action" class="hidden"></button>
+</div>
+
+<div id="sleep" class="hidden">
+  <div class="zzz"><span>z</span><span>z</span><span>Z</span></div>
+  <p>晚安……轻点任意处起床</p>
+</div>
+
+<div id="letter" class="modal hidden">
+  <div class="paper">
+    <div class="seal">★</div>
+    <div id="letter-body"></div>
+    <button class="btn" data-close>收好信</button>
+  </div>
+</div>
+
+<div id="help" class="modal hidden">
+  <div class="panel">
+    <h2>怎么玩</h2>
+    <ul>
+      <li><b>走动</b>　点一下地板；电脑上也可以用 WASD / 方向键</li>
+      <li><b>互动</b>　点沙发、壁炉、床、桌上的信；或者走近后按右下角的按钮（电脑按 E）</li>
+      <li><b>小星</b>　点一点它就能聊天；右上角 ⚙️ 填 API key，📖 是它的记忆本</li>
+      <li><b>窗外</b>　跟着你设备的真实时间变化，耐心等一等会有小火车</li>
+    </ul>
+    <button class="btn" data-close>知道啦</button>
+  </div>
+</div>
+
+<div id="chat" class="hidden">
+  <div class="chat-head">
+    <span id="chat-title">和小星说说话</span>
+    <button id="chat-clear" class="chip">清空对话</button>
+    <button id="chat-close" class="round small" aria-label="关闭">✕</button>
+  </div>
+  <div id="chat-log"></div>
+  <div class="chat-row">
+    <input id="chat-input" type="text" maxlength="200" placeholder="想对小星说点什么…" autocomplete="off" enterkeyhint="send">
+    <button id="chat-send" class="btn">发送</button>
+  </div>
+</div>
+
+<div id="settings" class="modal hidden">
+  <div class="panel form">
+    <h2>设置</h2>
+    <label>小星怎么称呼你
+      <input id="set-name" type="text" maxlength="12" placeholder="小颖" autocomplete="off">
+    </label>
+    <label>API key（Anthropic）
+      <div class="field-row">
+        <input id="set-key" type="password" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button id="set-key-show" class="chip" type="button">显示</button>
+        <button id="set-key-clear" class="chip" type="button">清除</button>
+      </div>
+    </label>
+    <p class="hint">key 只保存在这台设备的浏览器里，直接发给 Anthropic 的 API，不经过别的服务器。不填也能玩，小星会说预设台词。请不要在公用设备上填。</p>
+    <label>模型名
+      <input id="set-model" type="text" placeholder="claude-opus-5-5" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </label>
+    <label>Workspace ID（一般留空）
+      <input id="set-workspace" type="text" placeholder="wrkspc_…  只有 key 没绑定 workspace 时才需要" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </label>
+    <p class="stat">本次会话调用次数：<b id="session-calls">0</b></p>
+    <div class="btn-row">
+      <button class="btn ghost" data-close>取消</button>
+      <button id="set-save" class="btn">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="memory" class="modal hidden">
+  <div class="panel book">
+    <h2>小星的记忆本</h2>
+    <p class="hint">小星记下的、你们一起做过的事。只存在这台设备上，最多留最近 200 条。<span id="memory-count"></span></p>
+    <div id="memory-list"></div>
+    <div class="btn-row">
+      <button id="memory-export" class="chip">导出 JSON</button>
+      <button id="memory-import" class="chip">导入 JSON</button>
+      <button id="memory-clear" class="chip danger">全部清空</button>
+      <button class="btn" data-close>合上</button>
+    </div>
+    <input id="memory-file" type="file" accept="application/json,.json" hidden>
+  </div>
+</div>
+
+<div id="title">
+  <div class="title-card">
+    <div class="title-star">★</div>
+    <h1>星光小屋</h1>
+    <p id="title-sub">小星在屋里等你回家</p>
+    <button id="start" class="btn big" disabled>正在生火…</button>
+  </div>
+</div>
+
+<div id="rotate"><div>把设备横过来<br>小屋看得更全哦</div></div>
+<div id="toast" class="hidden"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

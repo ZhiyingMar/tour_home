@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c1f4f"/><stop offset="1" stop-color="#4a4a8a"/></linearGradient>
+    <radialGradient id="glow"><stop offset="0" stop-color="#ffe9a8" stop-opacity=".9"/><stop offset="1" stop-color="#ffe9a8" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <g fill="#fff" opacity=".85"><circle cx="80" cy="90" r="5"/><circle cx="420" cy="70" r="4"/><circle cx="350" cy="150" r="3"/><circle cx="140" cy="170" r="3"/><circle cx="460" cy="200" r="4"/></g>
+  <path d="M96 290 256 150l160 140v140a24 24 0 0 1-24 24H120a24 24 0 0 1-24-24z" fill="#f4e4c9"/>
+  <path d="M60 300 256 128l196 172-26 28L256 180 86 328z" fill="#e2574c"/>
+  <rect x="206" y="300" width="100" height="100" rx="14" fill="#ffd97a"/>
+  <path d="M256 300v100M206 350h100" stroke="#f4e4c9" stroke-width="10"/>
+  <circle cx="256" cy="250" r="90" fill="url(#glow)"/>
+  <path d="m256 206 13 30 33 3-25 22 8 32-29-17-29 17 8-32-25-22 33-3z" fill="#ffe9a8"/>
+</svg>
