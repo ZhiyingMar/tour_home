@@ -104,7 +104,9 @@ js/furniture.js       沙发、床
 js/fireplace.js       壁炉（毛石、拱券、柴架、壁炉台摆件、挂钟）
 js/decor.js           书架、书桌、落地灯、门
 js/dressing.js        窗和窗帘、绿植、地毯、踢脚线 / 腰线 / 顶角线、画框
-js/outdoor.js         屋外：小屋外观、池塘、铁路、无限延伸的草木、天空
+js/outdoor.js         屋外：池塘、铁路、无限延伸的草木（摆放）、天空
+js/cottage.js         屋外看到的小屋：木构架、鱼鳞瓦屋顶、烟囱、拱门和门廊、百叶窗花箱、路灯、信箱
+js/flora.js           树冠、树干、松树、石头的模型（给实例化草木用）
 js/bend.js            让地平线向下弯的着色器补丁
 js/post.js            后期效果：泛光、移轴景深、环境反射
 js/textures.js        程序生成的材质纹理：木纹、布纹、石头、墙纸、屋瓦

@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import { daylight, warmth } from './time.js';
 import { lerp, damp, rand, rng, canvasTex, glowTex, mat, rbox, ball, cyl, at } from './util.js';
 import { wind, windy, gustTint, grassClumpGeo, makeWater, buildCritters } from './nature.js';
+import { canopyGeo, trunkGeo, pineTrunkGeo, pineTierGeo, rockGeo, leafBump, barkBump } from './flora.js';
+import { stoneTex } from './textures.js';
+import { buildCottage } from './cottage.js';
 
 const CELL = 4; // 每格 4 米，一格里最多长一样大东西
 const RAIL_Z = -24;
@@ -84,42 +87,10 @@ export function buildOutdoor(scene) {
   ground.receiveShadow = true; ground.frustumCulled = false;
   g.add(ground);
 
-  // ───── 小屋外观 ─────
-  const house = new THREE.Group(); g.add(house);
-  add(rbox(6.8, 0.5, 5.4, '#b9a999', 0.08), 0, 0.2, -2.6, house);
-  add(rbox(6.4, 3.2, 5, '#f6e7cd', 0.1), 0, 1.9, -2.6, house);
-  const roofShape = new THREE.Shape();
-  roofShape.moveTo(-3.9, 0); roofShape.lineTo(3.9, 0); roofShape.lineTo(0, 2.5); roofShape.closePath();
-  const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(roofShape, { depth: 6, bevelEnabled: true, bevelSize: 0.12, bevelThickness: 0.12, bevelSegments: 3 }), mat('#e2725b'));
-  roof.castShadow = roof.receiveShadow = true;
-  add(roof, 0, 3.4, -5.6, house);
-  const gable = new THREE.Shape();
-  gable.moveTo(-2.9, 0); gable.lineTo(2.9, 0); gable.lineTo(0, 1.85); gable.closePath();
-  add(new THREE.Mesh(new THREE.ShapeGeometry(gable), mat('#f6e7cd')), 0, 3.5, 0.53, house);
-  add(ball(0.32, '#fff6e6', 1, 1, 0.2), 0, 4.2, 0.55, house);
-  add(rbox(0.9, 1.9, 0.9, '#cdbcab', 0.08), 1.9, 5.2, -3.6, house);
-  add(rbox(1.1, 0.2, 1.1, '#a99a8c', 0.06), 1.9, 6.2, -3.6, house);
-  // 门
-  add(rbox(1.5, 2.5, 0.16, '#fff6e6', 0.05), 0, 1.55, -0.08, house);
-  add(rbox(1.2, 2.25, 0.16, '#dba878', 0.06), 0, 1.5, -0.03, house);
-  add(ball(0.07, '#f3cf7a', 1, 1, 1, { roughness: 0.4, metalness: 0.3 }), 0.42, 1.45, 0.08, house);
-  add(cyl(0.22, 0.22, 0.05, '#a9c9ee', 20), 0, 2.15, 0.06, house).rotation.x = Math.PI / 2;
-  add(rbox(1.5, 0.06, 0.9, '#e9b08f', 0.03), 0, 0.47, 0.5, house);
-  add(rbox(1.9, 0.14, 0.9, '#b9a999', 0.05), 0, 0.36, 0.5, house);
-  add(rbox(2.3, 0.14, 0.6, '#b9a999', 0.05), 0, 0.2, 1.1, house);
-  // 窗：夜里会透出灯光
+  // ───── 小屋外观（模型在 cottage.js；窗户和门灯的材质留在这里，夜里要调亮）─────
   const winMat = new THREE.MeshStandardMaterial({ color: '#bfe1f2', emissive: '#ffcc80', emissiveIntensity: 0, roughness: 0.3 });
-  for (const sx of [-1, 1]) {
-    add(rbox(1.5, 1.4, 0.12, '#fff6e6', 0.05), sx * 2.05, 2.2, -0.08, house);
-    add(new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.1), winMat), sx * 2.05, 2.2, -0.005, house);
-    add(rbox(0.06, 1.1, 0.04, '#fff6e6', 0.01), sx * 2.05, 2.2, 0, house);
-    add(rbox(1.2, 0.06, 0.04, '#fff6e6', 0.01), sx * 2.05, 2.2, 0, house);
-    add(rbox(1.5, 0.28, 0.34, '#b98458', 0.05), sx * 2.05, 1.35, 0.1, house);
-    for (let k = 0; k < 5; k++) {
-      add(ball(0.11, ['#f2a9a0', '#f6cf6b', '#fff6e6', '#f2a9a0', '#d6b4e8'][k]), sx * 2.05 + (k - 2) * 0.27, 1.56, 0.12, house);
-      add(ball(0.12, '#6fae6c', 1, 0.6, 1), sx * 2.05 + (k - 2) * 0.27, 1.48, 0.1, house);
-    }
-  }
+  const lanternMat = new THREE.MeshStandardMaterial({ color: '#ffe9bd', emissive: '#ffcc80', emissiveIntensity: 0, roughness: 0.6 });
+  g.add(buildCottage(winMat, lanternMat));
   hit('home', 1.8, 2.8, 1.4, 0, 1.5, 0.3);
   // 烟囱的烟（屋里壁炉点着时才冒）
   const smoke = [];
@@ -127,16 +98,8 @@ export function buildOutdoor(scene) {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#f4f0ea', transparent: true, opacity: 0, depthWrite: false }));
     s.userData.ph = i / 7; g.add(s); smoke.push(s);
   }
-  // 门灯
-  const lanternMat = new THREE.MeshStandardMaterial({ color: '#ffe9bd', emissive: '#ffcc80', emissiveIntensity: 0, roughness: 0.6 });
-  add(cyl(0.05, 0.07, 2.0, '#6b4a36', 8), -1.7, 1.0, 1.0);
-  add(rbox(0.34, 0.4, 0.34, lanternMat, 0.08), -1.7, 2.15, 1.0);
-  add(rbox(0.42, 0.08, 0.42, '#6b4a36', 0.03), -1.7, 2.4, 1.0);
+  // 门灯（灯柱和信箱的模型也在 cottage.js）
   const lanternLight = new THREE.PointLight('#ffc98a', 0, 11, 1.6); add(lanternLight, -1.7, 2.1, 1.3);
-  // 信箱
-  add(cyl(0.05, 0.05, 1.0, '#8f6242', 8), 2.1, 0.5, 2.6);
-  add(rbox(0.5, 0.34, 0.34, '#e2574c', 0.1), 2.1, 1.1, 2.6);
-  add(rbox(0.04, 0.24, 0.12, '#f6cf6b', 0.01), 2.37, 1.2, 2.6);
 
   // ───── 篱笆 ─────
   const fenceRects = [];
@@ -254,19 +217,23 @@ export function buildOutdoor(scene) {
     g.add(m); return m;
   };
   const white = () => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 });
+  // 树叶和树皮：顶点色负责明暗，实例色负责每棵树的颜色；每种网格一份材质（风的参数挂在材质上）
+  const foliage = (bump = 1) => new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.82, bumpMap: leafBump, bumpScale: 1.4 * bump });
+  const bark = () => new THREE.MeshStandardMaterial({ color: '#8f6242', vertexColors: true, roughness: 0.9, bumpMap: barkBump, bumpScale: 2 });
   const M = {
-    trunk: inst(new THREE.CylinderGeometry(0.16, 0.24, 1.4, 8).translate(0, 0.7, 0), new THREE.MeshStandardMaterial({ color: '#8f6242', roughness: 0.85 }), 140),
-    leaf: inst(new THREE.SphereGeometry(1, 14, 10), white(), 420),
-    cone: inst(new THREE.ConeGeometry(1, 1.4, 10).translate(0, 0.7, 0), white(), 220),
-    bush: inst(new THREE.SphereGeometry(1, 12, 9), white(), 200),
-    rock: inst(new THREE.IcosahedronGeometry(1, 0), mat('#b9b2aa', { flatShading: true }), 80),
+    trunk: inst(trunkGeo(), bark(), 140),
+    ptrunk: inst(pineTrunkGeo(), bark(), 80),
+    leaf: inst(canopyGeo(3), foliage(), 420),
+    cone: inst(pineTierGeo(), foliage(0.5), 220),
+    bush: inst(canopyGeo(11, { lumps: 6, amp: 0.25, seg: 14 }), foliage(), 200),
+    rock: inst(rockGeo(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, bumpMap: stoneTex, bumpScale: 1.2 }), 80),
     flower: inst(new THREE.SphereGeometry(0.12, 8, 6), white(), 1000),
     tuft: inst(new THREE.ConeGeometry(0.1, 0.34, 5).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: '#7cc46c', roughness: 0.85 }), 760),
     grass: inst(grassClumpGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 1 }), 3200),
   };
   M.flower.castShadow = M.tuft.castShadow = M.grass.castShadow = false;
   // 风：树干和树冠按同一条曲线弯，所以整棵树是一起摆的；草和花摆得更灵活
-  windy(M.trunk, 0.16, 3, 0); windy(M.leaf, 0.16, 3, 0.012); windy(M.cone, 0.13, 3, 0.006);
+  windy(M.trunk, 0.16, 3, 0); windy(M.ptrunk, 0.13, 3, 0); windy(M.leaf, 0.16, 3, 0.012); windy(M.cone, 0.13, 3, 0.006);
   windy(M.bush, 0.05, 0.8, 0.01); windy(M.flower, 0.05, 0.25, 0); windy(M.tuft, 0.07, 0.3, 0); windy(M.grass, 0.13, 0.45, 0.004);
   const col = new THREE.Color();
   const LEAF = ['#7cc06e', '#6db562', '#8fce7a', '#62a85c'], PINE = ['#4f9a6a', '#458d62'], FLOWER = ['#f2a9a0', '#f6cf6b', '#ffffff', '#d6b4e8', '#f6b8c8', '#a9c9ee'];
@@ -276,7 +243,7 @@ export function buildOutdoor(scene) {
     const ci = Math.floor(px / CELL), cj = Math.floor(pz / CELL), key = `${ci},${cj}`;
     if (key === lastKey) return;
     lastKey = key;
-    const n = { trunk: 0, leaf: 0, cone: 0, bush: 0, rock: 0, flower: 0, tuft: 0, grass: 0 };
+    const n = { trunk: 0, ptrunk: 0, leaf: 0, cone: 0, bush: 0, rock: 0, flower: 0, tuft: 0, grass: 0 };
     const set = (name, x, y, z, sx, sy, sz, ry, color) => {
       const m = M[name];
       if (n[name] >= m.instanceMatrix.count) return;
@@ -297,7 +264,7 @@ export function buildOutdoor(scene) {
             set('leaf', x + 0.55 * s, 1.6 * s, z - 0.1 * s, 0.78 * s, 0.72 * s, 0.78 * s, 0, lc);
           } else if (c.type === 'pine') {
             const pc = PINE[v > 0.5 ? 1 : 0];
-            set('trunk', x, 0, z, s * 0.9, s * 0.7, s * 0.9, 0);
+            set('ptrunk', x, 0, z, s * 0.9, s * 0.7, s * 0.9, v * 6);
             set('cone', x, 0.75 * s, z, 1.05 * s, 1.1 * s, 1.05 * s, 0, pc);
             set('cone', x, 1.55 * s, z, 0.82 * s, 1.0 * s, 0.82 * s, 0, pc);
             set('cone', x, 2.3 * s, z, 0.56 * s, 0.9 * s, 0.56 * s, 0, pc);
