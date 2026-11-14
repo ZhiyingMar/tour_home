@@ -109,8 +109,9 @@ js/bend.js            让地平线向下弯的着色器补丁
 js/post.js            后期效果：泛光、移轴景深、环境反射
 js/textures.js        程序生成的材质纹理：木纹、布纹、石头、墙纸、屋瓦
 js/scenery.js         窗外风景（实时画在一张画布上）
-js/player.js          玩家角色
+js/player.js          玩家角色（模型 + 走、坐、躺的动画）
 js/xiaoxing.js        小星的模型、行为、预设台词
+js/charparts.js       角色零件：眼睛、腮红、一缕缕头发、毛和头发的材质、罗纹边、星空尾巴
 js/nav.js             寻路
 js/ai.js              调用 OpenAI 兼容接口（默认 DeepSeek）、提示词、设置
 js/memory.js          事件记录（记忆）

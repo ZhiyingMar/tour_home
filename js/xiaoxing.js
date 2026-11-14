@@ -1,12 +1,32 @@
 // 小星：拟人站姿的小松鼠，尾巴是一颗装着星空的圆球。自己闲逛、跟着主人、趴沙发扶手、窝在壁炉旁。
 import * as THREE from 'three';
-import { damp, lerp, lerpAngle, rand, pick, rng, canvasTex, ball, at, glowTex, sparkTex, stepPathNav } from './util.js';
+import { damp, lerp, lerpAngle, rand, pick, canvasTex, mat, at, glowTex, sparkTex, starShape, stepPathNav } from './util.js';
+import { Kit, soft, lathe, rounded, fabric } from './shapes.js';
+import { eyeTex, makeEye, cap, blush, lockGeo, placeYXZ, furMat, ribbedRing, rimMaterial, galaxyTex } from './charparts.js';
 import { hourNow, periodName } from './time.js';
 
 const ARM = new THREE.Vector3(-1.0, 0.98, -2.62); // 沙发左扶手顶上
 const ARM_BASE = { x: -1.6, z: -1.7 };
 const HEARTH = { x: -2.95, z: -1.6 };
 const BEDSIDE = { x: 3.0, z: -0.9 };
+
+// 麻花针织：两股绞在一起的粗麻花 + 两边的竖条罗纹，颜色画在贴图里（毛衣材质本身是白色）
+const cableTex = canvasTex(128, 128, (c) => {
+  c.fillStyle = '#7fb5a5'; c.fillRect(0, 0, 128, 128);
+  c.fillStyle = 'rgba(0,40,30,.18)';
+  for (let x = 0; x < 128; x += 8) c.fillRect(x, 0, 2, 128);
+  for (const cx of [32, 96]) {
+    c.fillStyle = '#6fa898'; c.fillRect(cx - 18, 0, 36, 128);
+    for (let y = -32; y < 160; y += 32) {
+      for (const [dir, col] of [[1, 'rgba(255,255,255,.28)'], [-1, 'rgba(0,30,20,.25)']]) {
+        c.strokeStyle = col; c.lineWidth = 9; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(cx - 9 * dir, y); c.bezierCurveTo(cx - 9 * dir, y + 14, cx + 9 * dir, y + 18, cx + 9 * dir, y + 32); c.stroke();
+      }
+    }
+  }
+});
+cableTex.wrapS = cableTex.wrapT = THREE.RepeatWrapping;
+cableTex.repeat.set(3, 1.5);
 
 // 没接 AI 时的预设台词（{name} 会换成称呼）
 export const PRESET_LINES = {
@@ -35,52 +55,87 @@ export class XiaoXing {
   }
 
   build() {
-    // 拟人站姿：大脑袋、小身子、穿件小毛衣；尾巴是一颗装着星空的圆球
-    const fur = '#cf7d43', cream = '#fdebd2', knit = '#7fb5a5';
+    // 拟人站姿：大脑袋、小身子、穿件麻花针织高领毛衣；尾巴是一颗装着星空的圆球
+    const fur = furMat('#cf7d43', '#ffcf98'), cream = furMat('#fdebd2', '#ffffff'), dark = furMat('#a85e30', '#e8a070');
+    const knit = fabric('#ffffff', { map: cableTex, sheen: '#d8fff0', bump: 0.9 });
+    const knitRib = fabric('#6fa898', { sheen: '#d8fff0' });
+    const pinkSkin = mat('#f6b8a8', { roughness: 0.6 });
     const body = this.body = new THREE.Group(); this.root.add(body);
-    for (const sx of [-1, 1]) {
-      body.add(at(ball(0.075, fur, 1, 1.5, 1), sx * 0.09, 0.12, 0));
-      body.add(at(ball(0.075, fur, 1, 0.55, 1.45), sx * 0.09, 0.035, 0.04));
-      const arm = ball(0.06, knit, 1, 1.9, 1); arm.rotation.z = sx * 0.5;
-      body.add(at(arm, sx * 0.2, 0.36, 0.02));
-      body.add(at(ball(0.05, fur), sx * 0.25, 0.27, 0.03));
-    }
-    body.add(at(ball(0.19, knit, 1, 1.12, 0.92), 0, 0.34, 0));
-    body.add(at(ball(0.12, cream, 1, 0.5, 0.9), 0, 0.5, 0.01));
-    const head = this.head = new THREE.Group(); head.position.set(0, this.headY, 0.02); body.add(head);
-    head.add(ball(0.27, fur, 1.1, 0.94, 1));
-    head.add(at(ball(0.17, cream, 1.25, 0.72, 0.6), 0, -0.09, 0.16));
-    head.add(at(ball(0.1, '#e9a066', 1.5, 0.5, 0.6), 0, 0.2, 0.15));
-    for (const sx of [-1, 1]) {
-      head.add(at(ball(0.095, fur, 1, 1, 0.6), sx * 0.2, 0.22, -0.02));
-      head.add(at(ball(0.055, '#f6b8a8', 1, 1, 0.4), sx * 0.2, 0.22, 0.03));
-      const ch = ball(0.045, new THREE.MeshBasicMaterial({ color: '#ffa99a', transparent: true, opacity: 0.8 }), 1, 0.6, 0.3);
-      ch.castShadow = false; head.add(at(ch, sx * 0.17, -0.07, 0.225));
-    }
-    this.eyes = [-1, 1].map((sx) => {
-      const e = ball(0.042, '#2e211e', 1, 1.2, 0.6, { roughness: 0.25 }); e.castShadow = false;
-      head.add(at(e, sx * 0.115, 0.01, 0.245));
-      const hl = ball(0.015, new THREE.MeshBasicMaterial({ color: '#fff' })); hl.castShadow = false;
-      e.add(at(hl, 0.012, 0.016, 0.035));
-      return e;
-    });
-    head.add(at(ball(0.026, '#e98b86', 1.2, 0.8, 1), 0, -0.05, 0.275));
 
-    // 星空尾巴：深蓝的球，里面是一粒粒星星；只有星星自己微微发亮
-    const tail = this.tail = new THREE.Group(); tail.position.set(0, 0.2, -0.14); body.add(tail);
-    const stars = [];
-    const r = rng(77);
-    for (let k = 0; k < 90; k++) stars.push([r() * 256, r() * 256, 0.6 + r() * r() * 2.6, r() < 0.25 ? '#ffe9a8' : '#ffffff']);
-    const paint = (bg) => canvasTex(256, 256, (c) => {
-      if (bg) { const g = c.createLinearGradient(0, 0, 0, 256); g.addColorStop(0, '#3a3f9a'); g.addColorStop(1, '#1f2463'); c.fillStyle = g; }
-      else c.fillStyle = '#0a0c22';
-      c.fillRect(0, 0, 256, 256);
-      for (const [x, y, rad, col] of stars) { c.fillStyle = col; c.beginPath(); c.arc(x, y, rad, 0, 7); c.fill(); }
+    const bk = new Kit();
+    for (const sx of [-1, 1]) {
+      // 腿和大脚丫（三个脚趾）
+      bk.add(new THREE.SphereGeometry(0.085, 18, 14), fur, sx * 0.1, 0.13, -0.01, 0, 0, 0, [1, 1.25, 1.1]);
+      bk.add(soft(0.09, 0.055, 0.17, { e: 0.45, puff: 0.1, seg: 8 }), fur, sx * 0.095, 0.03, 0.05);
+      for (const tx of [-0.026, 0, 0.026]) bk.add(new THREE.SphereGeometry(0.019, 10, 8), cream, sx * 0.095 + tx, 0.026, 0.128);
+      // 袖子 + 罗纹袖口 + 小爪子（三根手指）
+      bk.add(new THREE.CapsuleGeometry(0.056, 0.1, 4, 12), knit, sx * 0.2, 0.36, 0.02, 0, 0, sx * 0.5);
+      bk.add(ribbedRing(0.05, 0.018, 12, 32).rotateX(Math.PI / 2), knitRib, sx * 0.236, 0.29, 0.02, 0, 0, sx * 0.5);
+      bk.add(new THREE.SphereGeometry(0.047, 14, 12), fur, sx * 0.258, 0.255, 0.03);
+      for (const fx of [-0.02, 0, 0.02]) bk.add(new THREE.SphereGeometry(0.016, 8, 6), fur, sx * 0.262 + fx, 0.218, 0.05);
+    }
+    // 毛衣身子、下摆和高领的罗纹、胸口一颗小星星
+    bk.add(lathe([[0, 0.13], [0.16, 0.13], [0.195, 0.17], [0.205, 0.26], [0.2, 0.36], [0.18, 0.45], [0.14, 0.51], [0.09, 0.545], [0, 0.55]], 40), knit, 0, 0, 0, 0, 0, 0, [1, 1, 0.92]);
+    bk.add(ribbedRing(0.19, 0.03, 22, 56).rotateX(Math.PI / 2), knitRib, 0, 0.15, 0, 0, 0, 0, [1, 1, 0.92]);
+    bk.add(ribbedRing(0.1, 0.042, 16, 40).rotateX(Math.PI / 2), knitRib, 0, 0.54, 0);
+    const badge = new THREE.ExtrudeGeometry(starShape(0.05, 0.022), { depth: 0.012, bevelEnabled: true, bevelSize: 0.005, bevelThickness: 0.005, bevelSegments: 2 });
+    bk.add(badge, mat('#f6cf6b', { roughness: 0.4 }), 0, 0.37, 0.176, -0.2);
+    body.add(bk.build());
+
+    // ── 头 ──
+    const head = this.head = new THREE.Group(); head.position.set(0, this.headY, 0.02); body.add(head);
+    const hk = new Kit();
+    hk.add(new THREE.SphereGeometry(0.27, 32, 24), fur, 0, 0, 0, 0, 0, 0, [1.1, 0.94, 1]);
+    for (const sx of [-1, 1]) {
+      hk.add(new THREE.SphereGeometry(0.11, 18, 14), cream, sx * 0.17, -0.09, 0.12, 0, 0, 0, [1, 0.8, 0.85]);   // 鼓鼓的腮帮子
+      hk.add(placeYXZ(lockGeo(0.09, 0.07, 0.04, 0.2), sx * 0.27, -0.05, 0.04, 0, 0, sx * 1.17), cream); // 腮边一撮毛
+      hk.add(cap(0.125, 0.145, 0.03), cream, sx * 0.113, 0.012, 0.226, -0.05, sx * 0.42, 0);                   // 眼圈
+    }
+    hk.add(new THREE.SphereGeometry(0.15, 22, 16), cream, 0, -0.09, 0.165, 0, 0, 0, [1.25, 0.75, 0.62]);     // 嘴巴一圈
+    hk.add(new THREE.SphereGeometry(0.1, 18, 12), furMat('#e39a62', '#ffd2a0'), 0, 0.19, 0.155, 0, 0, 0, [1.5, 0.5, 0.6]); // 额头一抹深色
+    for (const [x, rz] of [[-0.05, 0.35], [0, 0], [0.05, -0.35]]) hk.add(placeYXZ(lockGeo(0.1, 0.075, 0.035, 0.35), x, 0.235, 0.01, Math.PI - 0.55, 0, rz), fur); // 头顶的呆毛
+    // 鼻子、ω 嘴、两颗小门牙
+    hk.add(new THREE.SphereGeometry(0.026, 16, 12), mat('#8a4a48', { roughness: 0.25 }), 0, -0.05, 0.272, 0, 0, 0, [1.35, 0.85, 0.9]);
+    hk.add(new THREE.SphereGeometry(0.007, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff' }), 0.01, -0.041, 0.293);
+    const w = new THREE.CatmullRomCurve3([[-0.038, -0.077, 0.26], [-0.02, -0.095, 0.268], [0, -0.08, 0.272], [0.02, -0.095, 0.268], [0.038, -0.077, 0.26]].map((p) => new THREE.Vector3(...p)));
+    hk.add(new THREE.TubeGeometry(w, 24, 0.005, 6), mat('#5a3328', { roughness: 0.5 }));
+    for (const sx of [-1, 1]) hk.add(rounded(0.014, 0.02, 0.008, 0.003, 1), mat('#ffffff', { roughness: 0.3 }), sx * 0.008, -0.102, 0.262);
+    // 尖耳朵：外面是毛，里面粉粉的，耳尖一撮深色簇毛
+    const earP = [[0, 0], [0.07, 0], [0.078, 0.04], [0.068, 0.1], [0.04, 0.15], [0.012, 0.18], [0, 0.185]];
+    for (const sx of [-1, 1]) {
+      const put = (g, m) => hk.add(placeYXZ(g, sx * 0.19, 0.17, -0.02, -0.1, sx * 0.15, -sx * 0.35), m);
+      put(lathe(earP, 22).scale(1, 1, 0.5), fur);
+      put(lathe(earP, 18).scale(0.68, 0.8, 0.3).translate(0, 0.015, 0.022), pinkSkin);
+      for (const [x, rz] of [[-0.012, 0.25], [0, 0], [0.012, -0.25]]) put(lockGeo(0.075, 0.03, 0.022, 0.25).rotateX(Math.PI).rotateZ(rz).translate(x, 0.17, 0), dark);
+    }
+    head.add(hk.build());
+    // 眼睛（会眨）和腮红
+    const eyeT = eyeTex('#2a1810', '#7a4426');
+    this.eyes = [-1, 1].map((sx) => {
+      const e = makeEye(0.085, 0.105, 0.025, eyeT, { side: sx, r: 0.005 });
+      e.position.set(sx * 0.115, 0.012, 0.238); e.rotation.set(-0.05, sx * 0.42, 0);
+      head.add(e); return e;
     });
-    this.tailMat = new THREE.MeshStandardMaterial({ map: paint(true), emissive: '#ffffff', emissiveMap: paint(false), emissiveIntensity: 0.6, roughness: 0.75 });
-    tail.add(at(ball(0.08, fur, 1, 1, 1.6), 0, 0.02, -0.08));
-    this.ball = ball(0.29, this.tailMat);
+    for (const sx of [-1, 1]) { const b = blush(0.08, 0.05, '#ffa99a', 0.8); b.position.set(sx * 0.17, -0.07, 0.222); b.rotation.y = sx * 0.6; head.add(b); }
+
+    // ── 星空尾巴：毛茸茸的尾巴根卷上去，托着一颗亮晶晶的星空球 ──
+    const tail = this.tail = new THREE.Group(); tail.position.set(0, 0.2, -0.14); body.add(tail);
+    const tk = new Kit();
+    const stem = new THREE.CatmullRomCurve3([new THREE.Vector3(0, -0.03, 0.03), new THREE.Vector3(0, 0.03, -0.1), new THREE.Vector3(0, 0.12, -0.2)]);
+    tk.add(new THREE.TubeGeometry(stem, 16, 0.065, 12), fur);
+    tk.add(new THREE.SphereGeometry(0.065, 12, 10), fur, 0, -0.03, 0.03);
+    tk.add(new THREE.TorusGeometry(0.11, 0.05, 12, 32), fur, 0, 0.15, -0.24, 0.39);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      tk.add(placeYXZ(lockGeo(0.08, 0.06, 0.03, 0.3).rotateX(Math.PI / 2 + 0.39).translate(Math.cos(a) * 0.12, 0.15 + Math.sin(a) * 0.11, -0.24 + Math.sin(a) * 0.04), 0, 0, 0, 0, 0, 0), fur);
+    }
+    tail.add(tk.build());
+    this.tailMat = new THREE.MeshPhysicalMaterial({ map: galaxyTex(false), emissive: '#ffffff', emissiveMap: galaxyTex(true), emissiveIntensity: 0.6, roughness: 0.55, clearcoat: 1, clearcoatRoughness: 0.08 });
+    this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.29, 32, 24), this.tailMat);
+    this.ball.castShadow = true;
     tail.add(at(this.ball, 0, 0.2, -0.36));
+    this.rimMat = rimMaterial('#a9b6ff');
+    tail.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.296, 24, 18), this.rimMat), 0, 0.2, -0.36));
     this.glowMat = new THREE.SpriteMaterial({ map: glowTex, color: '#8f9cff', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.1 });
     this.glow = new THREE.Sprite(this.glowMat); tail.add(at(this.glow, 0, 0.2, -0.36));
     this.light = new THREE.PointLight('#aab4ff', 0.1, 3.5, 2); tail.add(at(this.light, 0, 0.3, -0.36));
@@ -259,7 +314,7 @@ export class XiaoXing {
     this.head.rotation.y = resting || moving ? 0 : Math.sin(t * 0.55) * 0.5;
     const blink = (t % 4.3) < 0.12 ? 0.1 : 1;
     const ey = this.curl > 0.5 && this.reactT <= 0 ? 0.1 : blink;
-    for (const e of this.eyes) e.scale.y = damp(e.scale.y, 1.2 * ey, 25, dt);
+    for (const e of this.eyes) e.scale.y = damp(e.scale.y, ey, 25, dt);
 
     // 尾巴：轻轻晃 + 星星隐隐地闪（夜里稍亮一点，被点到时亮一下）
     this.tail.rotation.x = damp(this.tail.rotation.x, this.curl * 0.35 - this.flat * 0.2 + (moving ? -0.2 : 0), 6, dt);
@@ -271,6 +326,7 @@ export class XiaoXing {
     const gs = 1.15 + this.flare * 0.3;
     this.glow.scale.set(gs, gs, 1);
     this.light.intensity = lerp(0.05, 0.7, night) * tw + this.flare * 1.2;
+    this.rimMat.uniforms.uK.value = lerp(0.3, 0.85, night) * tw + this.flare * 0.8;
 
     // 星屑
     if ((this.sparkT -= dt) < 0) { this.sparkT = lerp(3.5, 1.2, night) * rand(0.6, 1.4); this.emit(1, 0.25); }
