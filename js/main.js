@@ -9,6 +9,7 @@ import { Nav } from './nav.js';
 import { Scenery } from './scenery.js';
 import { buildRoom } from './room.js';
 import { buildOutdoor } from './outdoor.js';
+import { wind } from './nature.js';
 import { createPost } from './post.js';
 import { applyTextures } from './textures.js';
 import { Player } from './player.js';
@@ -323,7 +324,7 @@ function frame() {
   sleepK = damp(sleepK, player.state === 'lie' ? 1 : 0, 0.9, dt);
   room.setEnv({ dl, wm, sleep: sleepK, t, dt, out: area === 'outdoor' });
   scenery.update(dt, h, t);
-  audio.tick(dt, room.fire.level);
+  audio.tick(dt, room.fire.level, area === 'outdoor' ? wind.gust.value : 0);
 
   // 镜头：开场从远处推近，之后轻轻跟着人
   if (started) intro = Math.min(1, intro + dt / 2.6);
@@ -349,6 +350,8 @@ function frame() {
     room.key.position.set(pp.x + 5, 11, pp.z + 8); room.key.target.position.set(pp.x, 0, pp.z - 0.5);
     const o = outdoor.update(dt, t, { dl, wm, h, fireLevel: room.fire.level }, pp.x, pp.z);
     if (o.whistle) audio.sfx('whistle');
+    if (o.tweet) audio.sfx('tweet');
+    if (o.plop) audio.sfx('plop');
   }
 
   // 地上的点击圈

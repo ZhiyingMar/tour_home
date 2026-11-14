@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { daylight, warmth } from './time.js';
 import { lerp, damp, rand, rng, canvasTex, glowTex, mat, rbox, ball, cyl, at } from './util.js';
+import { wind, windy, gustTint, grassClumpGeo, makeWater, buildCritters } from './nature.js';
 
 const CELL = 4; // 每格 4 米，一格里最多长一样大东西
 const RAIL_Z = -24;
@@ -77,7 +78,9 @@ export function buildOutdoor(scene) {
   grassTex.repeat.set(GROUND / TILE, GROUND / TILE);
   const groundGeo = new THREE.PlaneGeometry(GROUND, GROUND, 80, 80);
   groundGeo.rotateX(-Math.PI / 2);
-  const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
+  const groundMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 });
+  gustTint(groundMat);
+  const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.receiveShadow = true; ground.frustumCulled = false;
   g.add(ground);
 
@@ -167,10 +170,12 @@ export function buildOutdoor(scene) {
   g.add(stoneMesh);
 
   // ───── 池塘和长椅 ─────
-  const waterMat = new THREE.MeshStandardMaterial({ color: '#6fc3ea', emissive: '#6fc3ea', emissiveIntensity: 0.35, roughness: 0.4, transparent: true, opacity: 0.94 });
-  const water = new THREE.Mesh(new THREE.CircleGeometry(1, 40), waterMat);
-  water.rotation.x = -Math.PI / 2; water.scale.set(POND.rx, POND.rz, 1);
-  add(water, POND.x, 0.04, POND.z);
+  const pond = makeWater(POND);
+  const water = pond.mesh, waterMat = pond.material;
+  add(water, POND.x, 0.046, POND.z);
+  const pondFloor = new THREE.Mesh(new THREE.CircleGeometry(1, 40), mat('#4f9fce', { roughness: 1 }));
+  pondFloor.rotation.x = -Math.PI / 2; pondFloor.scale.set(POND.rx - 0.05, POND.rz - 0.05, 1);
+  add(pondFloor, POND.x, 0.028, POND.z);
   const bank = new THREE.Mesh(new THREE.CircleGeometry(1, 40), mat('#d9c9a3', { roughness: 1 }));
   bank.rotation.x = -Math.PI / 2; bank.scale.set(POND.rx + 0.35, POND.rz + 0.35, 1); bank.receiveShadow = true;
   add(bank, POND.x, 0.02, POND.z);
@@ -180,10 +185,21 @@ export function buildOutdoor(scene) {
     rock.castShadow = true; rock.scale.set(s * 1.3, s * 0.8, s); rock.rotation.y = k;
     add(rock, POND.x + Math.cos(a) * (POND.rx + 0.2), 0.1, POND.z + Math.sin(a) * (POND.rz + 0.2));
   }
+  const pads = [];
   for (const [x, z, s] of [[-1.4, 0.5, 0.42], [0.9, -0.8, 0.34], [1.7, 0.9, 0.3], [-0.3, 1.2, 0.26]]) {
     const pad = new THREE.Mesh(new THREE.CircleGeometry(s, 16, 0.4, Math.PI * 1.8), mat('#6fae6c'));
-    pad.rotation.x = -Math.PI / 2; add(pad, POND.x + x, 0.06, POND.z + z);
+    pad.rotation.x = -Math.PI / 2; add(pad, POND.x + x, 0.06, POND.z + z); pads.push(pad);
   }
+  // 岸边的芦苇（放在池塘靠后的一侧，不挡视线）
+  const REEDS = [];
+  for (const [a0, n] of [[-2.2, 6], [-1.1, 5], [-0.2, 4], [2.9, 4]]) for (let k = 0; k < n; k++) {
+    const a = a0 + (hash(k, n, 41) - 0.5) * 0.5, rr = 1.06 + hash(k, n, 42) * 0.1;
+    REEDS.push([POND.x + Math.cos(a) * POND.rx * rr, POND.z + Math.sin(a) * POND.rz * rr, 0.75 + hash(k, n, 43) * 0.6, hash(k, n, 44) < 0.6]);
+  }
+  const reedStalk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.012, 0.022, 1, 5).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: '#6aa85e', roughness: 0.9 }), REEDS.length);
+  const reedHead = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.035, 0.14, 3, 8).translate(0, 0.93, 0), new THREE.MeshStandardMaterial({ color: '#8a5a3c', roughness: 0.9 }), REEDS.length);
+  REEDS.forEach(([x, z, h, head], i) => { put(reedStalk, i, x, 0, z, 1, h, 1); put(reedHead, i, x, 0, z, 1, head ? h : 0.001, 1); });
+  for (const m of [reedStalk, reedHead]) { m.castShadow = true; m.frustumCulled = false; windy(m, 0.2, 1.1, 0.004); g.add(m); }
   add(ball(0.13, '#f6b8c8', 1, 0.7, 1), POND.x - 1.4, 0.13, POND.z + 0.5);
   const bench = new THREE.Group(); add(bench, 11, 0, -1.2);
   add(rbox(2.1, 0.12, 0.62, '#c99364', 0.05), 0, 0.5, 0, bench);
@@ -239,15 +255,19 @@ export function buildOutdoor(scene) {
   };
   const white = () => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 });
   const M = {
-    trunk: inst(new THREE.CylinderGeometry(0.16, 0.24, 1.4, 8).translate(0, 0.7, 0), mat('#8f6242'), 140),
+    trunk: inst(new THREE.CylinderGeometry(0.16, 0.24, 1.4, 8).translate(0, 0.7, 0), new THREE.MeshStandardMaterial({ color: '#8f6242', roughness: 0.85 }), 140),
     leaf: inst(new THREE.SphereGeometry(1, 14, 10), white(), 420),
     cone: inst(new THREE.ConeGeometry(1, 1.4, 10).translate(0, 0.7, 0), white(), 220),
     bush: inst(new THREE.SphereGeometry(1, 12, 9), white(), 200),
     rock: inst(new THREE.IcosahedronGeometry(1, 0), mat('#b9b2aa', { flatShading: true }), 80),
     flower: inst(new THREE.SphereGeometry(0.12, 8, 6), white(), 1000),
-    tuft: inst(new THREE.ConeGeometry(0.1, 0.34, 5).translate(0, 0.17, 0), mat('#7cc46c'), 760),
+    tuft: inst(new THREE.ConeGeometry(0.1, 0.34, 5).translate(0, 0.17, 0), new THREE.MeshStandardMaterial({ color: '#7cc46c', roughness: 0.85 }), 760),
+    grass: inst(grassClumpGeo(), new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 1 }), 3200),
   };
-  M.flower.castShadow = M.tuft.castShadow = false;
+  M.flower.castShadow = M.tuft.castShadow = M.grass.castShadow = false;
+  // 风：树干和树冠按同一条曲线弯，所以整棵树是一起摆的；草和花摆得更灵活
+  windy(M.trunk, 0.16, 3, 0); windy(M.leaf, 0.16, 3, 0.012); windy(M.cone, 0.13, 3, 0.006);
+  windy(M.bush, 0.05, 0.8, 0.01); windy(M.flower, 0.05, 0.25, 0); windy(M.tuft, 0.07, 0.3, 0); windy(M.grass, 0.13, 0.45, 0.004);
   const col = new THREE.Color();
   const LEAF = ['#7cc06e', '#6db562', '#8fce7a', '#62a85c'], PINE = ['#4f9a6a', '#458d62'], FLOWER = ['#f2a9a0', '#f6cf6b', '#ffffff', '#d6b4e8', '#f6b8c8', '#a9c9ee'];
   let lastKey = null;
@@ -256,7 +276,7 @@ export function buildOutdoor(scene) {
     const ci = Math.floor(px / CELL), cj = Math.floor(pz / CELL), key = `${ci},${cj}`;
     if (key === lastKey) return;
     lastKey = key;
-    const n = { trunk: 0, leaf: 0, cone: 0, bush: 0, rock: 0, flower: 0, tuft: 0 };
+    const n = { trunk: 0, leaf: 0, cone: 0, bush: 0, rock: 0, flower: 0, tuft: 0, grass: 0 };
     const set = (name, x, y, z, sx, sy, sz, ry, color) => {
       const m = M[name];
       if (n[name] >= m.instanceMatrix.count) return;
@@ -290,6 +310,10 @@ export function buildOutdoor(scene) {
           const fx = (i + hash(i, j, 10 + k)) * CELL, fz = (j + hash(i, j, 20 + k)) * CELL, fv = hash(i, j, 30 + k);
           if (fv < 0.55 && !reserved(fx, fz, -1.2)) set('flower', fx, 0.16, fz, 1, 0.8, 1, 0, FLOWER[Math.floor(fv / 0.55 * 5.99)]);
           else if (fv > 0.62) set('tuft', fx, 0, fz, 0.5 + fv * 0.5, 0.45 + fv * 0.4, 0.5 + fv * 0.5, fv * 9);
+        }
+        for (let k = 0; k < 8; k++) {
+          const fx = (i + hash(i, j, 40 + k)) * CELL, fz = (j + hash(i, j, 50 + k)) * CELL, fv = hash(i, j, 60 + k);
+          if (!reserved(fx, fz, -1)) set('grass', fx, 0, fz, 0.8 + fv * 0.7, 0.7 + fv * 0.9, 0.8 + fv * 0.7, fv * 9);
         }
       }
     }
@@ -382,8 +406,15 @@ export function buildOutdoor(scene) {
     randomPoint() { return { x: 0, z: 2 }; },
   };
 
+  const critters = buildCritters(g, { walkable, nearest: (x, z) => nav.nearest(x, z), POND, ripple: pond.ripple });
+
   let lampK = 0;
   function update(dt, t, { dl, wm, h, fireLevel }, px, pz) {
+    // 风一阵大一阵小
+    wind.time.value = t;
+    wind.gust.value = 0.75 + 0.35 * Math.sin(t * 0.31) + 0.2 * Math.sin(t * 0.83 + 1);
+    pond.day.value = dl;
+    pads.forEach((p, i) => { p.rotation.z = Math.sin(t * 0.35 + i * 1.7) * 0.2; });
     // 地面跟着人走，贴图反向偏移，花纹看起来就钉在世界上
     const gx = Math.round(px / 2) * 2, gz = Math.round(pz / 2) * 2;
     ground.position.set(gx, 0, gz - 14);
@@ -396,8 +427,8 @@ export function buildOutdoor(scene) {
     lanternMat.emissiveIntensity = lampK * 2.8;
     winMat.emissiveIntensity = lampK * 3.0;
     trainWin.emissiveIntensity = lampK * 2.3;
-    waterMat.color.set(mix3('#2f4390', '#6fc3ea', '#f0a58c', dl, wm * 0.25)); waterMat.emissive.copy(waterMat.color);
-    water.position.y = 0.04 + Math.sin(t * 1.3) * 0.006;
+    waterMat.color.set(mix3('#2f4390', '#6fc3ea', '#f0a58c', dl, wm * 0.25));
+    const ev = critters.update(dt, t, dl, px, pz);
 
     // 烟
     smoke.forEach((s) => {
@@ -440,12 +471,12 @@ export function buildOutdoor(scene) {
     fMat.opacity = lerp(0.9, 0.35, dl) * (0.75 + 0.25 * Math.sin(t * 2));
     for (let i = 0; i < FN; i++) {
       const s = fSeed[i];
-      const wx = ((s.x + Math.sin(t * 0.3 * s.sp + s.ph) * 1.5 - px) % 34 + 34) % 34 - 17 + px;
+      const wx = ((s.x + Math.sin(t * 0.3 * s.sp + s.ph) * 1.5 + t * 0.5 * dl - px) % 34 + 34) % 34 - 17 + px;
       const wz = ((s.z + Math.cos(t * 0.25 * s.sp + s.ph) * 1.5 - pz) % 26 + 26) % 26 - 19 + pz;
       fPos[i * 3] = wx; fPos[i * 3 + 1] = s.y + Math.sin(t * s.sp + s.ph) * 0.4 + nt * 0.2; fPos[i * 3 + 2] = wz;
     }
     fGeo.attributes.position.needsUpdate = true;
-    return { whistle };
+    return { whistle, tweet: ev.tweet, plop: ev.plop };
   }
 
   const anchors = {
