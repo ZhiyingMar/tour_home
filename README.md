@@ -98,7 +98,12 @@ index.html            页面骨架和所有面板
 css/style.css         界面样式
 js/config.js          房间尺寸、游戏名、信的文字、扩展开关
 js/main.js            入口：场景、输入、互动、主循环
-js/room.js            小屋、家具、灯光、壁炉
+js/room.js            小屋：墙、地板、家具摆放、灯光、火焰动画
+js/shapes.js          精细模型零件：软垫、枕头、车木、布料、线脚，Kit 按材质合并网格
+js/furniture.js       沙发、床
+js/fireplace.js       壁炉（毛石、拱券、柴架、壁炉台摆件、挂钟）
+js/decor.js           书架、书桌、落地灯、门
+js/dressing.js        窗和窗帘、绿植、地毯、踢脚线 / 腰线 / 顶角线、画框
 js/outdoor.js         屋外：小屋外观、池塘、铁路、无限延伸的草木、天空
 js/bend.js            让地平线向下弯的着色器补丁
 js/post.js            后期效果：泛光、移轴景深、环境反射
@@ -122,7 +127,7 @@ vendor/               Three.js（r170，已放进仓库，不依赖 CDN）
 - 改信的内容、游戏名：`js/config.js`
 - 改小星的性格和说话方式：`js/ai.js` 里的 `systemPrompt()`
 - 改预设台词：`js/xiaoxing.js` 里的 `PRESET_LINES`
-- 改家具位置或加家具：`js/room.js`（记得同步 `obstacles` 占地）
+- 改家具位置：`js/room.js`（记得同步 `obstacles` 占地）；改家具长相：`js/furniture.js`、`js/fireplace.js`、`js/decor.js`、`js/dressing.js`
 
 ## 预留的扩展位（现在都没实现）
 
