@@ -1,4 +1,4 @@
-// 角色用的精细零件：会反光的大眼睛、软软的腮红、一缕缕头发、毛茸茸的材质、罗纹针织边、星空尾巴的边缘光。
+// 角色用的精细零件：会反光的大眼睛、软软的腮红、一缕缕头发、头发材质、罗纹针织边。
 import * as THREE from 'three';
 import { canvasTex, rng } from './util.js';
 import { weld } from './shapes.js';
@@ -100,23 +100,6 @@ export function hairMat(color, sheen) {
   return new THREE.MeshPhysicalMaterial({ color, roughness: 0.48, sheen: 1, sheenColor: new THREE.Color(sheen), sheenRoughness: 0.32, bumpMap: strandTex, bumpScale: 0.9 });
 }
 
-// ───── 毛 ─────
-const furTex = canvasTex(256, 256, (c) => {
-  const r = rng(73);
-  c.fillStyle = '#a0a0a0'; c.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 1600; i++) {
-    const x = r() * 256, y = r() * 256, l = 3 + r() * 6, a = Math.PI / 2 + (r() - 0.5) * 0.7;
-    c.strokeStyle = r() < 0.55 ? `rgba(255,255,255,${0.25 + r() * 0.35})` : `rgba(0,0,0,${0.15 + r() * 0.25})`;
-    c.lineWidth = 0.8 + r();
-    c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); c.stroke();
-  }
-});
-furTex.wrapS = furTex.wrapT = THREE.RepeatWrapping;
-furTex.repeat.set(3, 3);
-export function furMat(color, sheen) {
-  return new THREE.MeshPhysicalMaterial({ color, roughness: 0.88, sheen: 1, sheenColor: new THREE.Color(sheen), sheenRoughness: 0.55, bumpMap: furTex, bumpScale: 1.6 });
-}
-
 // 罗纹边（毛衣领口、袖口、下摆、袜口）：一圈竖着的小棱
 export function ribbedRing(R, tube, ribs = 24, seg = 64) {
   const g = new THREE.TorusGeometry(R, tube, 6, seg), p = g.attributes.position;
@@ -129,37 +112,4 @@ export function ribbedRing(R, tube, ribs = 24, seg = 64) {
   }
   g.computeVertexNormals();
   return g;
-}
-
-// ───── 星空尾巴：边缘一圈淡淡的光（视线擦过球边的地方最亮）─────
-export function rimMaterial(color) {
-  return new THREE.ShaderMaterial({
-    uniforms: { uColor: { value: new THREE.Color(color) }, uK: { value: 0.5 } },
-    vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-    fragmentShader: 'uniform vec3 uColor; uniform float uK; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(clamp(1.0 - abs(dot(normalize(vN), normalize(vV))), 0.0, 1.0), 2.6) * uK; gl_FragColor = vec4(uColor * f, f); }',
-    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-  });
-}
-
-// 星空：深蓝底 + 几团紫粉青的星云 + 星星（大的带十字闪光）。emissive = true 时只画会发光的部分
-export function galaxyTex(emissive) {
-  const r = rng(77);
-  return canvasTex(512, 256, (c) => {
-    if (emissive) { c.fillStyle = '#05061a'; c.fillRect(0, 0, 512, 256); } else {
-      const g = c.createLinearGradient(0, 0, 0, 256); g.addColorStop(0, '#3b3f9e'); g.addColorStop(0.5, '#262b78'); g.addColorStop(1, '#1b1f5a');
-      c.fillStyle = g; c.fillRect(0, 0, 512, 256);
-    }
-    for (let i = 0; i < 9; i++) {
-      const x = r() * 512, y = 40 + r() * 176, rad = 40 + r() * 70, col = ['155,110,255', '255,140,200', '110,220,255'][i % 3];
-      const g = c.createRadialGradient(x, y, 0, x, y, rad);
-      g.addColorStop(0, `rgba(${col},${emissive ? 0.22 : 0.4})`); g.addColorStop(1, `rgba(${col},0)`);
-      c.fillStyle = g;
-      for (const ox of [0, -512, 512]) c.fillRect(x - rad + ox, y - rad, rad * 2, rad * 2);
-    }
-    for (let i = 0; i < 230; i++) {
-      const x = r() * 512, y = r() * 256, s = 0.5 + r() * r() * 2.4, col = r() < 0.25 ? '#ffe9a8' : r() < 0.4 ? '#cfe0ff' : '#ffffff';
-      c.fillStyle = col; c.beginPath(); c.arc(x, y, s, 0, 7); c.fill();
-      if (s > 2.1) { c.fillRect(x - s * 3, y - 0.5, s * 6, 1); c.fillRect(x - 0.5, y - s * 3, 1, s * 6); }
-    }
-  });
 }

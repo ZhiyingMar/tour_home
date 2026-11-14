@@ -53,7 +53,7 @@ world.describe = () => {
   const doing = st === 'lie' ? '躺在床上睡觉' : st === 'sit' ? (out ? '坐在池塘边的长椅上' : '窝在沙发里') : st === 'walk' ? '在走来走去' : '站着';
   const parts = [out ? `你们在屋外的草地上，${playerName()}${doing}。` : `你们在小屋里，${playerName()}${doing}。`];
   if (!out) parts.push(room.fire.lit ? '壁炉正烧着。' : '壁炉没点。');
-  const xs = { perch: '你正趴在沙发扶手上', curl: '你正窝成一团歇着', move: '你正在走动', attend: '你正待在TA身边' }[xiaoxing.state];
+  const xs = { perch: '你正坐在沙发扶手上', curl: '你正坐在地上歇着', move: '你正在走动', attend: '你正待在TA身边' }[xiaoxing.state];
   if (xs) parts.push(`${xs}。`);
   return parts.join('');
 };
