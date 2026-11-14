@@ -50,7 +50,7 @@
     <ul>
       <li><b>走动</b>　点一下地板；电脑上也可以用 WASD / 方向键</li>
       <li><b>互动</b>　点沙发、壁炉、床、桌上的信；或者走近后按右下角的按钮（电脑按 E）</li>
-      <li><b>小星</b>　点一点它就能聊天；右上角 ⚙️ 填 API key，📖 是它的记忆本</li>
+      <li><b>小星</b>　点一点他就能聊天；右上角 ⚙️ 填 API key，📖 是他的记忆本</li>
       <li><b>窗外</b>　跟着你设备的真实时间变化，耐心等一等会有小火车</li>
       <li><b>出门</b>　点右边那扇门可以到屋外，外面没有边界，随便走；点小屋的门回来</li>
       <li><b>镜头</b>　双指捏合放大缩小；电脑上用滚轮</li>
@@ -95,6 +95,21 @@
     <label class="check"><input id="set-proactive" type="checkbox"> 小星会自己跑来找你说话</label>
     <p class="hint">你有一阵没动静、或者刚睡醒时，小星会凑过来说一句。接了 AI 的话每次会用掉一次调用（大约几分钟一次，你一直不理它就会来得越来越少）。</p>
     <p class="stat">本次会话调用次数：<b id="session-calls">0</b></p>
+    <p class="stat">云端记忆：<b id="cloud-state">未登录</b></p>
+    <div id="cloud-login">
+      <label>邮箱
+        <input id="cloud-email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false">
+      </label>
+      <label>密码
+        <input id="cloud-pass" type="password" autocomplete="current-password">
+      </label>
+      <p class="hint">登录后，小星的记忆会同步到云端，不会被浏览器清掉，换设备也能接着用。账号要先在 Supabase 后台建好；密码不会保存，只保存登录凭证。</p>
+      <div class="btn-row"><button id="cloud-signin" class="chip" type="button">登录并同步</button></div>
+    </div>
+    <div id="cloud-in" class="btn-row" style="display:none">
+      <button id="cloud-sync" class="chip" type="button">立即同步</button>
+      <button id="cloud-signout" class="chip" type="button">退出登录</button>
+    </div>
     <div class="btn-row">
       <button class="btn ghost" data-close>取消</button>
       <button id="set-save" class="btn">保存</button>
@@ -105,7 +120,7 @@
 <div id="memory" class="modal hidden">
   <div class="panel book">
     <h2>小星的记忆本</h2>
-    <p class="hint">小星记下的、你们一起做过的事。只存在这台设备上，最多留最近 200 条。<span id="memory-count"></span></p>
+    <p class="hint">小星记下的、你们一起做过的事。<span id="memory-where"></span><span id="memory-count"></span></p>
     <div id="memory-list"></div>
     <div class="btn-row">
       <button id="memory-export" class="chip">导出 JSON</button>

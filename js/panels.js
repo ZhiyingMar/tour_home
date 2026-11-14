@@ -101,7 +101,10 @@ function saveSettingsForm() {
 function renderMemory() {
   const list = $('memory-list'), all = memory.all();
   list.innerHTML = '';
-  $('memory-count').textContent = `${all.length} / ${memory.MAX} 条`;
+  $('memory-where').textContent = memory.cloud.state.signedIn
+    ? '已同步到云端，浏览器清缓存也不会丢。'
+    : `只存在这台设备上，最多留最近 ${memory.MAX} 条。想长期保存，去设置里登录云端同步。`;
+  $('memory-count').textContent = ` 现在有 ${all.length} 条`;
   if (!all.length) { list.appendChild(el('p', 'empty', '还是空白的。去坐坐沙发、点点壁炉，小星会一件件记下来。')); return; }
   for (const e of [...all].reverse()) {
     const row = el('div', 'mem');
@@ -152,7 +155,40 @@ export function initPanels() {
   $('memory-import').addEventListener('click', () => $('memory-file').click());
   $('memory-file').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) importMemory(f); e.target.value = ''; });
   $('memory-clear').addEventListener('click', () => {
-    if (confirm('把记忆本全部清空吗？清空后找不回来。')) memory.clear();
+    const msg = memory.cloud.state.signedIn ? '把记忆本全部清空吗？云端的也会一起删掉，找不回来。' : '把记忆本全部清空吗？清空后找不回来。';
+    if (confirm(msg)) memory.clear();
   });
   memory.onChange(() => { if (!$('memory').classList.contains('hidden')) renderMemory(); });
+
+  // 云端同步
+  $('cloud-signin').addEventListener('click', async () => {
+    const email = $('cloud-email').value.trim(), pass = $('cloud-pass').value;
+    if (!email || !pass) { ui.toast('邮箱和密码都要填'); return; }
+    $('cloud-signin').disabled = true;
+    try {
+      await memory.cloud.signIn(email, pass);
+      $('cloud-pass').value = '';
+      ui.toast('登录好了，正在同步记忆');
+    } catch (e) {
+      ui.toast(e instanceof TypeError ? '网络不通，登录没成功' : `登录失败：${e.message}`.slice(0, 40));
+    }
+    $('cloud-signin').disabled = false;
+  });
+  $('cloud-sync').addEventListener('click', () => memory.cloud.sync());
+  $('cloud-signout').addEventListener('click', () => { memory.cloud.signOut(); ui.toast('已退出，本机的记忆还在'); });
+  memory.cloud.onChange(renderCloud);
+  renderCloud();
+}
+
+function renderCloud() {
+  const s = memory.cloud.state;
+  $('cloud-login').style.display = s.signedIn ? 'none' : '';
+  $('cloud-in').style.display = s.signedIn ? '' : 'none';
+  const text = !s.signedIn ? (s.error || '未登录')
+    : s.state === 'syncing' ? `${s.email} · 同步中…`
+    : s.state === 'error' ? `${s.email} · ${s.error}`
+    : s.state === 'ok' ? `${s.email} · 已同步`
+    : s.email;
+  $('cloud-state').textContent = text;
+  if (!$('memory').classList.contains('hidden')) renderMemory();
 }
