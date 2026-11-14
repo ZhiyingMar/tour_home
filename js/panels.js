@@ -65,11 +65,19 @@ function liftAboveKeyboard() {
 }
 
 // ───────── 设置页 ─────────
+let keyCleared = false;
+function keyPlaceholder() {
+  const k = (settings.apiKey || '').trim();
+  $('set-key').placeholder = k && !keyCleared ? `已保存（…${k.slice(-4)}），留空就不改` : 'sk-…';
+}
 function openSettings() {
   chat.hide();
   $('set-name').value = settings.name || '';
-  $('set-key').value = settings.apiKey || '';
+  // 存好的 key 不再放回输入框，只显示末尾 4 位，免得谁拿起设备都能点“显示”看到
+  keyCleared = false;
+  $('set-key').value = '';
   $('set-key').type = 'password';
+  keyPlaceholder();
   $('set-model').value = settings.model || DEFAULT_MODEL;
   $('set-base').value = settings.baseUrl || DEFAULT_BASE_URL;
   $('set-proactive').checked = settings.proactive !== false;
@@ -80,7 +88,7 @@ function openSettings() {
 function saveSettingsForm() {
   saveSettings({
     name: $('set-name').value.trim().slice(0, 12),
-    apiKey: $('set-key').value.trim(),
+    apiKey: $('set-key').value.trim() || (keyCleared ? '' : settings.apiKey),
     model: $('set-model').value.trim(),
     baseUrl: $('set-base').value.trim(),
     proactive: $('set-proactive').checked,
@@ -137,7 +145,7 @@ export function initPanels() {
   $('btn-settings').addEventListener('click', openSettings);
   $('set-save').addEventListener('click', saveSettingsForm);
   $('set-key-show').addEventListener('click', () => { const k = $('set-key'); k.type = k.type === 'password' ? 'text' : 'password'; });
-  $('set-key-clear').addEventListener('click', () => { $('set-key').value = ''; });
+  $('set-key-clear').addEventListener('click', () => { $('set-key').value = ''; keyCleared = true; keyPlaceholder(); });
 
   $('btn-memory').addEventListener('click', () => { chat.hide(); renderMemory(); ui.open('memory'); });
   $('memory-export').addEventListener('click', exportMemory);
