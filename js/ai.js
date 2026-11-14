@@ -8,7 +8,7 @@
 import { DEFAULT_NAME } from './config.js';
 import { hourNow, periodName } from './time.js';
 import { memory } from './memory.js';
-import { PRESET_LINES } from './xiaoxing.js';
+import { PRESET_LINES, SEEK_LINES, ACTIONS } from './xiaoxing.js';
 
 const SETTINGS_KEY = 'starhome.settings.v1';
 const CHAT_KEY = 'starhome.chat.v1';
@@ -18,12 +18,15 @@ const MAX_TOKENS = 600; // 每次回复的硬上限（模型的思考也算在�
 const MAX_SENTENCES = 3; // 小星每次最多说三句
 const HISTORY_FOR_PROMPT = 10; // 带进提示词的最近对话句数
 
+// 游戏把“现在的情况”告诉这里：在屋里还是屋外、主人在干嘛、壁炉亮没亮（main.js 里设置）
+export const world = { area: 'indoor', describe: () => '' };
+
 function read(key, fallback) {
   try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch { return fallback; }
 }
 function write(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* 忽略 */ } }
 
-export const settings = Object.assign({ name: '', apiKey: '', model: DEFAULT_MODEL, baseUrl: DEFAULT_BASE_URL }, read(SETTINGS_KEY, {}));
+export const settings = Object.assign({ name: '', apiKey: '', model: DEFAULT_MODEL, baseUrl: DEFAULT_BASE_URL, proactive: true }, read(SETTINGS_KEY, {}));
 delete settings.workspaceId;
 // 旧版本存的是 Claude 的 key 和模型名，换成通用接口后不能再用
 if (/^claude/i.test(settings.model || '') || /^sk-ant-/.test(settings.apiKey || '')) {
@@ -66,6 +69,13 @@ function systemPrompt() {
     `现在是 ${d.getMonth() + 1}月${d.getDate()}日 ${periodName(h)}。`,
     '最近的事：',
     memory.summary(12),
+    '',
+    `此刻：${world.describe() || '你们在小屋里。'}`,
+    '',
+    '你不只会说话，还能自己动。想做动作时，在回复最后单独加一个标记，比如【动作:壁炉】，一次最多一个，不想动就不加。标记不会被念出来，所以话里不用重复描述这个动作。',
+    '现在能做的动作：',
+    ...Object.entries(ACTIONS[world.area] || {}).map(([k, v]) => `- ${k}：${v}`),
+    `${name}让你去哪儿、做什么时，就用对应的动作去做；做不到的就俏皮地说一声。`,
   ].join('\n');
 }
 
@@ -85,14 +95,22 @@ function buildMessages(userText) {
   return out;
 }
 
+// 把回复里的【动作:xxx】拿出来，剩下的才是要说的话
+const TAG = /[【\[]\s*动作\s*[:：]\s*([^】\]]+?)\s*[】\]]/g;
+function splitAction(text) {
+  let action = null;
+  const valid = ACTIONS[world.area] || {};
+  const clean = text.replace(TAG, (_, a) => { if (!action && valid[a]) action = a; return ''; });
+  return { text: clean, action };
+}
+
 function trimReply(text) {
   const parts = text.replace(/\s+/g, ' ').trim().match(/[^。！？!?…~～]+[。！？!?…~～]*/g) || [text.trim()];
   return parts.slice(0, MAX_SENTENCES).join('').trim();
 }
 
 function presetLine() {
-  const lines = PRESET_LINES[periodName(hourNow())];
-  return lines[Math.floor(Math.random() * lines.length)].replace('{name}', playerName());
+  return pickLine(PRESET_LINES[periodName(hourNow())]);
 }
 
 // 兼容写法：Base URL 可以填到根（https://api.deepseek.com）、/v1，或完整的 /chat/completions
@@ -128,7 +146,10 @@ async function callAPI(userText) {
     const choice = data.choices?.[0];
     const text = (choice?.message?.content || '').trim();
     if (!text) throw new Error(choice?.finish_reason === 'length' ? '回复被长度上限截断了，换个说法再试一次。' : '模型没有说话。');
-    return trimReply(text);
+    const r = splitAction(text);
+    r.text = trimReply(r.text);
+    if (!r.text) throw new Error('模型没有说话。');
+    return r;
   }
 
   let msg = '';
@@ -141,15 +162,36 @@ async function callAPI(userText) {
   throw new Error(msg ? `请求没成功：${msg.slice(0, 120)}` : `请求没成功（${res.status}）。`);
 }
 
-// 对外只有这一个入口：返回 { text, source: 'ai' | 'preset', error? }
+// 主人说话：返回 { text, action, source: 'ai' | 'preset', error? }
 export async function ask(userText) {
   remember('user', userText);
   let result;
-  if (!hasKey()) result = { text: presetLine(), source: 'preset' };
+  if (!hasKey()) result = { text: presetLine(), action: null, source: 'preset' };
   else {
-    try { result = { text: await callAPI(userText), source: 'ai' }; }
-    catch (e) { result = { text: presetLine(), source: 'preset', error: e.message }; }
+    try { result = { ...(await callAPI(userText)), source: 'ai' }; }
+    catch (e) { result = { text: presetLine(), action: null, source: 'preset', error: e.message }; }
   }
   remember('assistant', result.text);
   return result;
 }
+
+// 小星自己跑来找主人说话。reason：'idle'（主人有一阵没动静了）| 'wake'（主人刚睡醒）
+// 这句提示不算主人说的话，不进对话记录；小星说的那句会进记录，主人打开聊天框就能接着聊。
+const SEEK_HINT = {
+  idle: (name, mins) => `${name}已经${mins}分钟左右没怎么动了，你自己跑到TA身边，主动找TA说说话。`,
+  wake: (name) => `${name}刚睡醒起床，你凑过去跟TA打招呼。`,
+};
+export async function seek(reason, mins = 3) {
+  const name = playerName();
+  let result;
+  const fallback = () => pickLine(SEEK_LINES[reason] || SEEK_LINES.idle);
+  if (!hasKey()) result = { text: fallback(), action: null, source: 'preset' };
+  else {
+    const hint = `（旁白，不是${name}说的话：${SEEK_HINT[reason](name, mins)}说一两句，可以聊聊刚才一起做过的事、现在的天色和屋里屋外的样子，或者邀请TA一起做点什么。别问“在干嘛”这种空话，也别说自己是被旁白叫来的。）`;
+    try { result = { ...(await callAPI(hint)), source: 'ai' }; }
+    catch (e) { result = { text: fallback(), action: null, source: 'preset', error: e.message }; }
+  }
+  remember('assistant', result.text);
+  return result;
+}
+function pickLine(lines) { return lines[Math.floor(Math.random() * lines.length)].replace('{name}', playerName()); }

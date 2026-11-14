@@ -40,7 +40,7 @@ async function send() {
   typing.remove();
   addLine('xx', r.text);
   if (r.error) addLine('note', `${r.error}（先用预设台词顶一下）`);
-  onSpeak && onSpeak(r.text);
+  onSpeak && onSpeak(r.text, r.action);
   busy = false; $('chat-send').disabled = false;
   $('session-calls').textContent = session.calls;
 }
@@ -72,6 +72,7 @@ function openSettings() {
   $('set-key').type = 'password';
   $('set-model').value = settings.model || DEFAULT_MODEL;
   $('set-base').value = settings.baseUrl || DEFAULT_BASE_URL;
+  $('set-proactive').checked = settings.proactive !== false;
   $('session-calls').textContent = session.calls;
   ui.open('settings');
 }
@@ -82,6 +83,7 @@ function saveSettingsForm() {
     apiKey: $('set-key').value.trim(),
     model: $('set-model').value.trim(),
     baseUrl: $('set-base').value.trim(),
+    proactive: $('set-proactive').checked,
   });
   ui.closeAll();
   ui.toast(hasKey() ? '保存好啦，小星可以陪你聊天了' : '保存好啦');

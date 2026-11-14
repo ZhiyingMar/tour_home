@@ -203,6 +203,8 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; touch-action
 .form h2, .book h2 { text-align: center; }
 .form label { display: block; font-weight: 800; font-size: 16px; margin: 14px 0 0; }
 .form label input { display: block; width: 100%; margin-top: 6px; border-radius: 18px; font-weight: 500; }
+.form label.check { display: flex; align-items: center; gap: 10px; margin-top: 18px; cursor: pointer; }
+.form label.check input { width: 24px; height: 24px; min-height: 0; margin: 0; flex: none; accent-color: var(--accent); }
 .field-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
 .field-row input { margin-top: 0 !important; }
 .hint { font-size: 14px; line-height: 1.55; color: var(--ink-soft); margin: 8px 2px 0; }

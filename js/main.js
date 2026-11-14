@@ -17,7 +17,7 @@ import { XiaoXing } from './xiaoxing.js';
 import { ui } from './ui.js';
 import { audio } from './audio.js';
 import './memory.js';
-import { playerName } from './ai.js';
+import { playerName, settings, seek, world } from './ai.js';
 import { chat, initPanels } from './panels.js';
 
 const canvas = document.getElementById('game');
@@ -46,6 +46,17 @@ let area = 'indoor', switching = false; // indoor = 屋里，outdoor = 屋外
 const nav = new Nav(ROOM, room.obstacles);
 const player = new Player(scene, nav);
 const xiaoxing = new XiaoXing(scene, nav, { player, fire: room.fire });
+
+// 告诉 AI 现在的情况
+world.describe = () => {
+  const out = area === 'outdoor', st = player.state;
+  const doing = st === 'lie' ? '躺在床上睡觉' : st === 'sit' ? (out ? '坐在池塘边的长椅上' : '窝在沙发里') : st === 'walk' ? '在走来走去' : '站着';
+  const parts = [out ? `你们在屋外的草地上，${playerName()}${doing}。` : `你们在小屋里，${playerName()}${doing}。`];
+  if (!out) parts.push(room.fire.lit ? '壁炉正烧着。' : '壁炉没点。');
+  const xs = { perch: '你正趴在沙发扶手上', curl: '你正窝成一团歇着', move: '你正在走动', attend: '你正待在TA身边' }[xiaoxing.state];
+  if (xs) parts.push(`${xs}。`);
+  return parts.join('');
+};
 
 const emit = (type) => bus.emit('action', { type, at: Date.now(), period: periodName(hourNow()) });
 
@@ -133,7 +144,7 @@ function switchArea(to) {
   ui.fade(true); audio.sfx('door');
   setTimeout(() => {
     const out = to === 'outdoor';
-    area = to;
+    area = to; world.area = to;
     room.group.visible = !out; outdoor.group.visible = out;
     scene.background = out ? outdoor.skyTex : bgColor;
     player.nav = out ? outdoor.nav : nav;
@@ -149,7 +160,7 @@ function switchArea(to) {
 
 function standUp(then) {
   const was = player.state;
-  if (was === 'lie') { ui.sleep(false); audio.sfx('wake'); emit('wake'); }
+  if (was === 'lie') { ui.sleep(false); audio.sfx('wake'); emit('wake'); if (Math.random() < 0.6) setTimeout(() => comeFind('wake'), 2500); }
   player.stand(then);
 }
 
@@ -274,7 +285,40 @@ function doAction() {
 ui.init();
 initPanels();
 // 小星在聊天框里回话时，头顶也冒一个气泡
-chat.onSpeak = (text) => { audio.sfx('chirp'); xiaoxing.flare = 0.6; ui.say('xx', '小星', text, (v) => xiaoxing.headPos(v), 5); };
+// AI 回复里带了动作，说完话就去做
+chat.onSpeak = (text, action) => {
+  audio.sfx('chirp'); xiaoxing.flare = 0.6; ui.say('xx', '小星', text, (v) => xiaoxing.headPos(v), 5);
+  if (action) setTimeout(() => xiaoxing.act(action), 700);
+};
+
+// ───── 小星自己跑来找你 ─────
+// 你有一阵没动静（没点、没按键）就会过来说一句；刚睡醒也可能过来。
+// 你一直不理它（不打开聊天回话），下次就隔得更久，免得烦人，也省 API 调用。
+let lastInput = performance.now(), nextSeekAt = performance.now() + 150e3, ignored = 0, seeking = false;
+let idleNeed = 120e3; // 这次要安静多久才过来（每次随机 100–180 秒）
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { lastInput = performance.now(); }, true);
+bus.on('action', (e) => { if (e.type === 'chat') ignored = 0; });
+async function comeFind(reason) {
+  if (seeking || !started || settings.proactive === false || document.hidden || switching) return;
+  if (ui.modalOpen || chat.open || player.state === 'lie' || player.tw) return;
+  seeking = true;
+  const mins = Math.max(1, Math.round((performance.now() - lastInput) / 60e3));
+  // 边跑过去边等 AI 回话，两样都好了再开口（路被挡住的话最多等 9 秒）
+  const arrived = new Promise((res) => { xiaoxing.act('过来', res); setTimeout(res, 9000); });
+  const [r] = await Promise.all([seek(reason, mins), arrived]);
+  seeking = false;
+  ignored++;
+  nextSeekAt = performance.now() + Math.min(20, 5 * 2 ** Math.max(0, ignored - 1)) * 60e3;
+  idleNeed = (100 + Math.random() * 80) * 1e3;
+  if (player.state === 'lie' || chat.open) return;
+  audio.sfx('chirp'); xiaoxing.flare = 0.8;
+  ui.say('xx', '小星', r.text, (v) => xiaoxing.headPos(v), 7);
+  if (r.action && r.action !== '过来') setTimeout(() => xiaoxing.act(r.action), 4500);
+}
+setInterval(() => {
+  const now = performance.now();
+  if (now >= nextSeekAt && now - lastInput > idleNeed) comeFind('idle');
+}, 5000);
 ui.onWake = () => { if (player.state === 'lie') standUp(); };
 ui.onAction = () => { audio.resume(); doAction(); };
 ui.onSound = () => { const m = !audio.muted; audio.setMuted(m); ui.setSound(!m); saveState({ muted: m }); };
@@ -382,4 +426,4 @@ function frame() {
 requestAnimationFrame(frame);
 
 // 调试用：控制台里可以直接看状态
-window.__game = { player, xiaoxing, room, outdoor, scenery, nav, acts, interact, switchArea };
+window.__game = { player, xiaoxing, room, outdoor, scenery, nav, acts, interact, switchArea, comeFind };

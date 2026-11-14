@@ -38,6 +38,30 @@ export const PRESET_LINES = {
   夜晚: ['星星出来了，有一颗是我的亲戚哦。', '点上壁炉吧，我给你留了最暖的位置。'],
   深夜: ['这么晚还不睡呀？我陪着你。', '嘘……月亮都困了，{name}也早点睡。'],
 };
+// 自己跑来找主人时、没接 AI 用的台词
+export const SEEK_LINES = {
+  idle: ['{name}，我来找你玩啦！', '{name}，陪我待一会儿嘛。', '嘿嘿，偷偷跑过来看看你。', '{name}，你在想什么呀？我也想听听。'],
+  wake: ['睡醒啦？我一直在旁边守着哦。', '{name}睡得好吗？我的尾巴给你照了一晚上。'],
+};
+
+// AI 能让小星做的动作：动作名 → 给模型看的说明（按屋里 / 屋外分开）
+export const ACTIONS = {
+  indoor: {
+    过来: '跑到主人身边，看着TA',
+    扶手: '跳上沙发左边的扶手趴着',
+    壁炉: '去壁炉旁边窝成一团',
+    床边: '去床边窝着',
+    转圈: '原地蹦一下转个圈，撒星星',
+    逛逛: '自己在屋里随便走走',
+  },
+  outdoor: {
+    过来: '跑到主人身边，看着TA',
+    窝着: '就地窝成一团歇一会儿',
+    转圈: '原地蹦一下转个圈，撒星星',
+    逛逛: '在主人附近随便走走',
+  },
+};
+
 const POKE = ['嘿嘿，痒！', '吱～', '再摸一下也可以哦。', '尾巴亮不亮？'];
 
 export class XiaoXing {
@@ -49,7 +73,7 @@ export class XiaoXing {
     this.yaw = 0.6; this.path = []; this.then = null;
     this.state = 'idle'; this.timer = 2.5;
     this.flat = 0; this.curl = 0; this.hop = 0; this.flare = 0; this.reactT = 0; this.spin = 0;
-    this.tw = null; this.where = 'floor'; this.area = 'indoor'; this.headY = 0.73;
+    this.tw = null; this.where = 'floor'; this.area = 'indoor'; this.headY = 0.73; this.pending = null;
     this.build();
     scene.add(this.root);
   }
@@ -225,9 +249,44 @@ export class XiaoXing {
     this.moveTo(this.nav.randomPoint(), null);
   }
 
+  // 跑到主人跟前（站在TA面朝的方向上），到了以后看着TA待一会儿。arrived：到了时调用
+  come(arrived) {
+    const { player } = this.ctx;
+    const fy = player.yaw;
+    const want = { x: player.pos.x + Math.sin(fy) * 0.95, z: player.pos.z + Math.cos(fy) * 0.95 };
+    const t = this.nav.nearest(want.x, want.z);
+    const near = Math.hypot(t.x - this.pos.x, t.z - this.pos.z) < 0.3;
+    const stay = () => { this.state = 'attend'; this.timer = rand(9, 14); arrived && arrived(); };
+    if (near) stay(); else this.moveTo(t, stay);
+  }
+
+  // AI 给的动作。在扶手上 / 正跳着的时候先下来，再去做
+  // done：只对“过来”有用，跑到主人跟前时调用
+  act(name, done) {
+    if (!(ACTIONS[this.area] || {})[name]) return false;
+    if (this.state === 'jump') { this.pending = [name, done]; return true; }
+    if (this.where === 'arm' && name !== '扶手') {
+      const b = this.nav.nearest(ARM_BASE.x, ARM_BASE.z);
+      this.where = 'floor';
+      this.jump(new THREE.Vector3(b.x, 0, b.z), 0.6, () => { this.state = 'idle'; this.timer = 1; this.act(name, done); });
+      return true;
+    }
+    this.path = []; this.then = null;
+    switch (name) {
+      case '过来': this.come(done); break;
+      case '扶手': if (this.where === 'arm') this.rest('perch', rand(20, 34), 0.35); else this.goPerch(); break;
+      case '壁炉': this.goCurl(HEARTH, -0.9); break;
+      case '床边': this.goCurl(BEDSIDE, 0.4); break;
+      case '窝着': this.rest('curl', rand(12, 20), this.yaw); break;
+      case '转圈': this.reactT = 0.9; this.flare = 1; this.emit(12, 1.1); this.state = 'react'; break;
+      case '逛逛': this.state = 'idle'; this.timer = 0; break;
+    }
+    return true;
+  }
+
   // 主人坐下 / 躺下 / 点火时，小星提前结束手头的事，凑过去
   nudge() {
-    if (this.state === 'idle') this.timer = Math.min(this.timer, 0.6);
+    if (this.state === 'idle' || this.state === 'attend') { this.state = 'idle'; this.timer = Math.min(this.timer, 0.6); }
     else if (this.state === 'move' && !this.then) { this.path = []; this.state = 'idle'; this.timer = 0.3; }
     else if (this.state === 'perch' || this.state === 'curl') this.timer = Math.min(this.timer, rand(3, 6));
   }
@@ -237,7 +296,7 @@ export class XiaoXing {
     if (this.state === 'jump') return null;
     this.reactT = 0.9; this.flare = 1;
     this.emit(10, 1.1);
-    if (this.state === 'idle' || this.state === 'move') { this.path = []; this.then = null; this.state = 'react'; }
+    if (this.state === 'idle' || this.state === 'move' || this.state === 'attend') { this.path = []; this.then = null; this.state = 'react'; }
     const lines = Math.random() < 0.3 ? POKE : PRESET_LINES[periodName(hourNow())];
     return pick(lines).replace('{name}', name);
   }
@@ -273,7 +332,10 @@ export class XiaoXing {
         this.pos.lerpVectors(w.from, w.to, w.t);
         this.pos.y += Math.sin(w.t * Math.PI) * w.arc;
         faceYaw = Math.atan2(w.to.x - w.from.x, w.to.z - w.from.z);
-        if (w.t >= 1) { this.tw = null; this.yaw = w.yaw; w.then && w.then(); }
+        if (w.t >= 1) {
+          this.tw = null; this.yaw = w.yaw; w.then && w.then();
+          if (this.pending && this.state !== 'jump') { const [a, d] = this.pending; this.pending = null; this.act(a, d); }
+        }
         break;
       }
       case 'perch':
@@ -281,6 +343,12 @@ export class XiaoXing {
         faceYaw = this.restYaw;
         if ((this.timer -= dt) < 0) this.leave();
         break;
+      case 'attend': {
+        const p = this.ctx.player.pos;
+        faceYaw = Math.atan2(p.x - this.pos.x, p.z - this.pos.z);
+        if ((this.timer -= dt) < 0) { this.state = 'idle'; this.timer = rand(1, 3); }
+        break;
+      }
       case 'react':
         faceYaw = 0.15;
         if (this.reactT <= 0) { this.state = 'idle'; this.timer = rand(1.2, 2.5); }

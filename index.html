@@ -92,6 +92,8 @@
     <label>模型名
       <input id="set-model" type="text" placeholder="deepseek-chat" autocomplete="off" autocapitalize="off" spellcheck="false">
     </label>
+    <label class="check"><input id="set-proactive" type="checkbox"> 小星会自己跑来找你说话</label>
+    <p class="hint">你有一阵没动静、或者刚睡醒时，小星会凑过来说一句。接了 AI 的话每次会用掉一次调用（大约几分钟一次，你一直不理它就会来得越来越少）。</p>
     <p class="stat">本次会话调用次数：<b id="session-calls">0</b></p>
     <div class="btn-row">
       <button class="btn ghost" data-close>取消</button>
